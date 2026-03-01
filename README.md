@@ -111,3 +111,32 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 | Endpoint | Method | Description        |
 |----------|--------|--------------------|
 | `/`      | GET    | Backend status     |
+
+## Deploy to Render
+
+The backend is configured for deployment on [Render](https://render.com).
+
+### Option 1: Blueprint (recommended)
+
+1. Push this repo to GitHub/GitLab/Bitbucket.
+2. In [Render Dashboard](https://dashboard.render.com), create a new **Blueprint**.
+3. Connect your repo and select this repository.
+4. Render will detect `render.yaml` and create the web service.
+5. Add the `CORS_ORIGINS` environment variable with your frontend URL(s), e.g.:
+   - `https://your-frontend.onrender.com` (if deploying frontend on Render)
+   - Or `http://localhost:5173` for local development (default if not set)
+
+### Option 2: Manual Web Service
+
+1. Create a new **Web Service** on Render.
+2. Connect your repository.
+3. Configure:
+   - **Root Directory:** `backend`
+   - **Build Command:** `pip install -r requirements.txt`
+   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Add environment variable `CORS_ORIGINS` with your frontend URL (comma-separated for multiple).
+
+### After deployment
+
+- Your API will be available at `https://<service-name>.onrender.com`
+- Update the frontend `api.js` base URL to point to this URL.

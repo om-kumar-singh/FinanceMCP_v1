@@ -2,6 +2,8 @@
 BharatFinanceAI - FastAPI Backend
 """
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,11 +21,13 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# CORS configuration to allow frontend (Vite) to call the API
-origins = [
+# CORS: use CORS_ORIGINS env var (comma-separated) for production, else localhost
+_default_origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+_cors_origins = os.getenv("CORS_ORIGINS", "").strip()
+origins = [o.strip() for o in _cors_origins.split(",") if o.strip()] or _default_origins
 
 app.add_middleware(
     CORSMiddleware,

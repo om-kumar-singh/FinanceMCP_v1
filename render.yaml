@@ -1,0 +1,22 @@
+# BharatFinanceAI - Render Blueprint
+# Deploy backend: Connect this repo to Render and use this blueprint, or create a Web Service manually.
+
+services:
+  - type: web
+    runtime: python
+    name: bharat-finance-ai-api
+
+    # Backend lives in backend/
+    rootDir: backend
+
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    # Health check for Render
+    healthCheckPath: /
+
+    # Add your frontend URL(s) when deploying (comma-separated for multiple)
+    # Example: https://bharat-finance-ai.onrender.com,https://your-custom-domain.com
+    envVars:
+      - key: CORS_ORIGINS
+        sync: false

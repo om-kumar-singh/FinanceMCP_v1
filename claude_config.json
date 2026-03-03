@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "BharatFinanceMCP": {
+      "command": "python",
+      "args": ["FULL_PATH_TO/backend/mcp_server.py"],
+      "env": {
+        "PYTHONPATH": "FULL_PATH_TO/backend"
+      }
+    }
+  }
+}
+

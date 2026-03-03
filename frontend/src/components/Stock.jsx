@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import api from '../services/api'
+import StockSearch from './StockSearch'
 
 function Stock() {
-  const [symbol, setSymbol] = useState('RELIANCE.NS')
+  const [selectedSymbol, setSelectedSymbol] = useState('RELIANCE.NS')
+  const [selectedName, setSelectedName] = useState('Reliance Industries Limited')
   const [stockData, setStockData] = useState(null)
   const [rsiData, setRsiData] = useState(null)
   const [macdData, setMacdData] = useState(null)
@@ -12,7 +14,10 @@ function Stock() {
   const [rsiError, setRsiError] = useState(null)
   const [macdError, setMacdError] = useState(null)
 
-  const fetchStockData = async () => {
+  const fetchStockData = async (symbolToFetch = selectedSymbol) => {
+    const symbol = symbolToFetch || selectedSymbol
+    if (!symbol) return
+
     setStockError(null)
     setRsiError(null)
     setMacdError(null)
@@ -87,37 +92,31 @@ function Stock() {
     return 'text-gray-700'
   }
 
+  const handleStockSelect = (stock) => {
+    if (!stock) return
+    setSelectedSymbol(stock.symbol)
+    setSelectedName(stock.company_name || stock.display_symbol || stock.symbol)
+    fetchStockData(stock.symbol)
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Input and action card */}
-      <div className="bg-white rounded-lg shadow-md p-6">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-lg p-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Stock Dashboard</h2>
 
-        <div className="flex flex-col sm:flex-row gap-3 mb-2">
-          <input
-            type="text"
-            value={symbol}
-            onChange={(e) => setSymbol(e.target.value)}
-            placeholder="Enter stock symbol (e.g. RELIANCE.NS)"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-          />
-          <button
-            onClick={fetchStockData}
-            disabled={loading}
-            className="px-6 py-2 bg-indigo-600 text-white font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? 'Loading...' : 'Get Stock Data'}
-          </button>
+        <div className="flex flex-col gap-3 mb-2">
+          <StockSearch onStockSelect={handleStockSelect} />
+          <p className="text-sm text-gray-500">
+            Start typing a company name or NSE symbol (e.g. Reliance, TCS, HDFC Bank).
+          </p>
         </div>
-        <p className="text-sm text-gray-500">
-          Example symbols: RELIANCE.NS, TCS.NS, INFY.NS
-        </p>
       </div>
 
       {/* Data cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Stock Data Card */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-lg p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Stock Data</h3>
 
           {stockError && (
@@ -132,9 +131,13 @@ function Stock() {
 
           {stockData && (
             <div className="grid grid-cols-1 gap-3">
-              <div className="flex justify-between py-1 border-b border-gray-100">
-                <span className="text-gray-600">Symbol</span>
-                <span className="font-medium">{stockData.symbol}</span>
+              <div className="pb-2 border-b border-gray-100">
+                <div className="text-base font-semibold text-gray-900">
+                  {selectedName || stockData.symbol}
+                </div>
+                <div className="text-xs text-gray-500">
+                  NSE: {stockData.symbol?.replace('.NS', '')}
+                </div>
               </div>
               <div className="flex justify-between py-1 border-b border-gray-100">
                 <span className="text-gray-600">Price</span>
@@ -183,7 +186,7 @@ function Stock() {
         </div>
 
         {/* RSI Card */}
-        <div className="bg-white rounded-lg shadow-md p-6">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-lg p-6">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">RSI</h3>
 
           {rsiError && (
@@ -219,7 +222,7 @@ function Stock() {
         </div>
 
         {/* MACD Card */}
-        <div className="bg-white rounded-lg shadow-md p-6 md:col-span-2">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-lg p-6 md:col-span-2">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">MACD</h3>
 
           {macdError && (

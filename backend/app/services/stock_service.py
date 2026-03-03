@@ -5,6 +5,42 @@ Stock data service using yfinance.
 import pandas_ta as ta
 import yfinance as yf
 
+from app.services.stock_search_service import resolve_symbol
+
+# NIFTY 50 symbols (NSE)
+NIFTY_50_SYMBOLS = [
+    "RELIANCE.NS",
+    "TCS.NS",
+    "HDFCBANK.NS",
+    "INFY.NS",
+    "ICICIBANK.NS",
+    "HINDUNILVR.NS",
+    "ITC.NS",
+    "SBIN.NS",
+    "BHARTIARTL.NS",
+    "KOTAKBANK.NS",
+    "LT.NS",
+    "AXISBANK.NS",
+    "ASIANPAINT.NS",
+    "MARUTI.NS",
+    "TATAMOTORS.NS",
+    "WIPRO.NS",
+    "ULTRACEMCO.NS",
+    "NESTLEIND.NS",
+    "TITAN.NS",
+    "BAJFINANCE.NS",
+    "BAJAJFINSV.NS",
+    "TECHM.NS",
+    "HCLTECH.NS",
+    "SUNPHARMA.NS",
+    "DRREDDY.NS",
+    "ONGC.NS",
+    "NTPC.NS",
+    "POWERGRID.NS",
+    "COALINDIA.NS",
+    "JSWSTEEL.NS",
+]
+
 
 def get_stock_quote(symbol: str) -> dict | None:
     """
@@ -20,6 +56,12 @@ def get_stock_quote(symbol: str) -> dict | None:
         return None
 
     symbol = symbol.strip().upper()
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        resolved = resolve_symbol(symbol)
+        if not resolved:
+            return None
+        symbol = resolved
+
     ticker = yf.Ticker(symbol)
 
     # Fetch 5 days of history to ensure we have previous close
@@ -73,6 +115,12 @@ def calculate_rsi(symbol: str, period: int = 14) -> dict | None:
         return None
 
     symbol = symbol.strip().upper()
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        resolved = resolve_symbol(symbol)
+        if not resolved:
+            return None
+        symbol = resolved
+
     ticker = yf.Ticker(symbol)
 
     # Fetch enough history for RSI (period * 2 ensures sufficient data)
@@ -121,6 +169,12 @@ def calculate_macd(symbol: str) -> dict | None:
         return None
 
     symbol = symbol.strip().upper()
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        resolved = resolve_symbol(symbol)
+        if not resolved:
+            return None
+        symbol = resolved
+
     ticker = yf.Ticker(symbol)
 
     # Fetch at least 60 days of history for MACD (needs ~35+ for default 12/26/9)
@@ -159,4 +213,172 @@ def calculate_macd(symbol: str) -> dict | None:
         "signal": round(signal_line, 2),
         "histogram": round(histogram, 2),
         "trend": trend,
+    }
+
+
+def get_top_gainers_losers(count: int = 10) -> dict | None:
+    """
+    Fetch NIFTY 50 stocks and return top N gainers and top N losers by daily % change.
+
+    Args:
+        count: Number of top gainers and losers to return (default 10)
+
+    Returns:
+        Dict with gainers and losers lists, or None on error.
+    """
+    if count < 1 or count > 50:
+        return None
+
+    results = []
+    for symbol in NIFTY_50_SYMBOLS:
+        ticker = yf.Ticker(symbol)
+        hist = ticker.history(period="5d")
+        if hist is None or hist.empty or len(hist) < 2:
+            continue
+        latest = hist.iloc[-1]
+        previous = hist.iloc[-2]
+        close = float(latest["Close"])
+        previous_close = float(previous["Close"])
+        change_percent = round((close - previous_close) / previous_close * 100, 2) if previous_close else 0
+        results.append({
+            "symbol": symbol,
+            "price": round(close, 2),
+            "change_percent": change_percent,
+        })
+
+    if not results:
+        return None
+
+    sorted_by_change = sorted(results, key=lambda x: x["change_percent"], reverse=True)
+    gainers = sorted_by_change[:count]
+    losers = sorted_by_change[-count:][::-1]
+
+    return {
+        "gainers": gainers,
+        "losers": losers,
+    }
+
+
+def calculate_moving_averages(symbol: str) -> dict | None:
+    """
+    Calculate SMA20, SMA50, SMA200 and current price vs each MA.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., RELIANCE.NS, TCS.NS)
+
+    Returns:
+        Dict with price, SMAs, and signal (above/below) for each, or None if invalid.
+    """
+    if not symbol or not symbol.strip():
+        return None
+
+    symbol = symbol.strip().upper()
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        resolved = resolve_symbol(symbol)
+        if not resolved:
+            return None
+        symbol = resolved
+
+    ticker = yf.Ticker(symbol)
+    hist = ticker.history(period="1y")
+
+    if hist is None or hist.empty:
+        return None
+
+    if len(hist) < 200:
+        return None
+
+    close = hist["Close"]
+    sma20 = ta.sma(close, length=20)
+    sma50 = ta.sma(close, length=50)
+    sma200 = ta.sma(close, length=200)
+
+    if sma20 is None or sma50 is None or sma200 is None:
+        return None
+
+    latest_close = float(close.iloc[-1])
+    latest_sma20 = float(sma20.iloc[-1])
+    latest_sma50 = float(sma50.iloc[-1])
+    latest_sma200 = float(sma200.iloc[-1])
+
+    if any(v != v for v in (latest_sma20, latest_sma50, latest_sma200)):
+        return None
+
+    def _signal(price: float, ma: float) -> str:
+        return "above" if price > ma else "below"
+
+    return {
+        "symbol": symbol,
+        "price": round(latest_close, 2),
+        "sma20": round(latest_sma20, 2),
+        "sma50": round(latest_sma50, 2),
+        "sma200": round(latest_sma200, 2),
+        "signal_sma20": _signal(latest_close, latest_sma20),
+        "signal_sma50": _signal(latest_close, latest_sma50),
+        "signal_sma200": _signal(latest_close, latest_sma200),
+    }
+
+
+def calculate_bollinger_bands(symbol: str) -> dict | None:
+    """
+    Calculate Bollinger Bands (length=20, std=2) for the given symbol.
+
+    Args:
+        symbol: Stock ticker symbol (e.g., RELIANCE.NS, TCS.NS)
+
+    Returns:
+        Dict with upper, middle, lower bands and signal (overbought/oversold/neutral), or None if invalid.
+    """
+    if not symbol or not symbol.strip():
+        return None
+
+    symbol = symbol.strip().upper()
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        resolved = resolve_symbol(symbol)
+        if not resolved:
+            return None
+        symbol = resolved
+
+    ticker = yf.Ticker(symbol)
+    hist = ticker.history(period="60d")
+
+    if hist is None or hist.empty:
+        return None
+
+    if len(hist) < 25:
+        return None
+
+    bbands_df = ta.bbands(hist["Close"], length=20, std=2)
+
+    if bbands_df is None or bbands_df.empty:
+        return None
+
+    cols = bbands_df.columns.tolist()
+    if len(cols) < 3:
+        return None
+
+    latest = bbands_df.iloc[-1]
+    lower = float(latest[cols[0]])
+    middle = float(latest[cols[1]])
+    upper = float(latest[cols[2]])
+
+    if any(v != v for v in (lower, middle, upper)):
+        return None
+
+    price = float(hist["Close"].iloc[-1])
+
+    if price > upper:
+        signal = "overbought"
+    elif price < lower:
+        signal = "oversold"
+    else:
+        signal = "neutral"
+
+    return {
+        "symbol": symbol,
+        "price": round(price, 2),
+        "upper": round(upper, 2),
+        "middle": round(middle, 2),
+        "lower": round(lower, 2),
+        "signal": signal,
     }

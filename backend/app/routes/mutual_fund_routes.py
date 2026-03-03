@@ -4,7 +4,12 @@ Mutual fund and SIP API routes.
 
 from fastapi import APIRouter, HTTPException
 
-from app.services.mutual_fund_service import calculate_sip, get_mutual_fund_nav
+from app.services.mutual_fund_service import (
+    calculate_capital_gains,
+    calculate_sip,
+    get_mutual_fund_nav,
+    search_mutual_funds,
+)
 
 mutual_fund_router = APIRouter(tags=["mutual-fund"])
 
@@ -52,3 +57,87 @@ def sip_calculator(
             detail="annual_return must be between 0 and 100.",
         )
     return calculate_sip(monthly_investment, years, annual_return)
+
+
+@mutual_fund_router.get("/mutual-fund/search")
+def mutual_fund_search(query: str):
+    """
+    Search mutual funds by name or keyword.
+
+    Example: GET /mutual-fund/search?query=hdfc tax saver
+    """
+    if not query or not query.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="query must be a non-empty string.",
+        )
+
+    data = search_mutual_funds(query)
+    if data is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to search mutual funds. Service temporarily unavailable.",
+        )
+
+    if not data:
+        return {
+            "query": query,
+            "results": [],
+            "message": f"No mutual funds found for query '{query}'.",
+        }
+
+    return {
+        "query": query,
+        "results": data,
+    }
+
+
+@mutual_fund_router.get("/capital-gains")
+def capital_gains(
+    buy_price: float,
+    sell_price: float,
+    quantity: int,
+    holding_days: int,
+    asset_type: str = "equity",
+):
+    """
+    Calculate capital gains and tax for equity or debt investments.
+
+    Example:
+    GET /capital-gains?buy_price=2000&sell_price=2800&quantity=10&holding_days=400&asset_type=equity
+    """
+    if buy_price <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="buy_price must be greater than 0.",
+        )
+    if sell_price <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="sell_price must be greater than 0.",
+        )
+    if quantity < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="quantity must be at least 1.",
+        )
+    if holding_days < 1:
+        raise HTTPException(
+            status_code=400,
+            detail="holding_days must be at least 1.",
+        )
+
+    atype = (asset_type or "").strip().lower()
+    if atype not in ("equity", "debt"):
+        raise HTTPException(
+            status_code=400,
+            detail="asset_type must be 'equity' or 'debt'.",
+        )
+
+    return calculate_capital_gains(
+        buy_price=buy_price,
+        sell_price=sell_price,
+        quantity=quantity,
+        holding_days=holding_days,
+        asset_type=atype,
+    )

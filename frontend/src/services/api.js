@@ -7,4 +7,24 @@ const api = axios.create({
   },
 })
 
+export const searchStocks = async (query, limit = 8, signal) => {
+  const response = await api.get('/stock/search', {
+    params: { q: query, limit },
+    signal,
+  })
+  return response.data
+}
+
+export const getPopularStocks = async () => {
+  const response = await api.get('/stock/popular')
+  return response.data
+}
+
+export const resolveSymbol = async (query) => {
+  const response = await api.get('/stock/resolve', {
+    params: { q: query },
+  })
+  return response.data
+}
+
 export default api

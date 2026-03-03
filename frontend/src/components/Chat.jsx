@@ -26,6 +26,20 @@ function formatBotResponse(response) {
     return `MACD for ${result.symbol}: MACD ${result.macd}, signal ${result.signal}, histogram ${result.histogram} (trend ${result.trend}).`
   }
 
+  if (source === 'gainers_losers' && result.gainers) {
+    const g = result.gainers.slice(0, 3).map((s) => `${s.symbol}: +${s.change_percent}%`)
+    const l = result.losers.slice(0, 3).map((s) => `${s.symbol}: ${s.change_percent}%`)
+    return `Top gainers:\n${g.join('\n')}\n\nTop losers:\n${l.join('\n')}`
+  }
+
+  if (source === 'moving_averages' && result.symbol) {
+    return `${result.symbol}: Price ₹${result.price}, SMA20 ${result.sma20} (${result.signal_sma20}), SMA50 ${result.sma50} (${result.signal_sma50}), SMA200 ${result.sma200} (${result.signal_sma200}).`
+  }
+
+  if (source === 'bollinger' && result.symbol) {
+    return `Bollinger Bands for ${result.symbol}: upper ${result.upper}, middle ${result.middle}, lower ${result.lower} (signal: ${result.signal}).`
+  }
+
   if (source === 'sip' && result.future_value !== undefined) {
     return `If you invest ₹${result.monthly_investment} per month for ${result.years} years at ${result.annual_return}% annual return, your future value could be around ₹${result.future_value}.`
   }
@@ -71,7 +85,7 @@ function Chat() {
   const [messages, setMessages] = useState([
     {
       sender: 'bot',
-      text: 'Hi, I am BharatFinanceAI assistant. Ask me about stocks, RSI, MACD, SIP, mutual funds, IPOs, or macro data (repo rate, inflation, GDP).',
+      text: 'Hi, I am BharatFinanceAI assistant. Ask me about stocks, RSI, MACD, moving averages, Bollinger Bands, gainers/losers, SIP, mutual funds, IPOs, or macro data (repo rate, inflation, GDP).',
     },
   ])
   const [input, setInput] = useState('')
@@ -119,10 +133,10 @@ function Chat() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="bg-slate-900 text-slate-100 rounded-xl shadow-lg flex flex-col h-[480px] md:h-[560px]">
-        <div className="px-4 py-3 border-b border-slate-700 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">AI Chat</h2>
-          {loading && <span className="text-xs text-slate-400">BharatFinanceAI is thinking...</span>}
+      <div className="bg-white text-slate-900 rounded-xl border border-slate-200 shadow-lg flex flex-col h-[480px] md:h-[560px] overflow-hidden">
+        <div className="px-4 py-3 border-b-2 border-slate-200 flex items-center justify-between bg-gradient-to-r from-orange-50 to-white rounded-t-xl">
+          <h2 className="text-lg font-semibold text-slate-900">AI Chat</h2>
+          {loading && <span className="text-xs text-orange-500">BharatFinanceAI is thinking...</span>}
         </div>
 
         {/* Messages */}
@@ -133,10 +147,10 @@ function Chat() {
               className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap break-words ${
+                className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap break-words border ${
                   msg.sender === 'user'
-                    ? 'bg-indigo-500 text-white rounded-br-sm'
-                    : 'bg-slate-800 text-slate-100 rounded-bl-sm'
+                    ? 'bg-orange-500 text-white border-orange-500 rounded-br-sm'
+                    : 'bg-slate-50 text-slate-900 border-slate-200 rounded-bl-sm'
                 }`}
               >
                 {msg.text}
@@ -147,7 +161,7 @@ function Chat() {
         </div>
 
         {/* Input */}
-        <div className="border-t border-slate-700 px-3 py-3">
+        <div className="border-t-2 border-slate-200 px-3 py-3 bg-slate-50 rounded-b-xl">
           <div className="flex items-end gap-2">
             <textarea
               rows={1}
@@ -155,13 +169,13 @@ function Chat() {
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder='Ask a question, e.g. "What is the RSI of Reliance?"'
-              className="flex-1 resize-none rounded-lg bg-slate-800 text-slate-100 border border-slate-600 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder:text-slate-400"
+              className="flex-1 resize-none rounded-lg bg-white text-slate-900 border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400"
             />
             <button
               type="button"
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="px-4 py-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Sending...' : 'Send'}
             </button>

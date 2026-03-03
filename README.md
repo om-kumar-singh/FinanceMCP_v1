@@ -1,6 +1,17 @@
 # BharatFinanceAI
 
-Full-stack finance AI application with FastAPI backend.
+A premium Indian fintech-style full-stack application for **Indian Markets Intelligence**. Built with FastAPI, React, Firebase Auth, and Realtime Database.
+
+## Features
+
+- **Authentication** – Firebase Auth (email/password) with protected routes
+- **Dashboard** – Tabbed interface: Market View, Technical Analysis, AI Advisor
+- **Market Overview** – Stock search, live NSE price data, add-to-watchlist
+- **Technical Lab** – RSI and MACD with visual gauges (oversold/overbought)
+- **AI Advisor** – Natural-language chat for stocks, SIP, mutual funds, IPOs, macro data
+- **Watchlist** – Firebase-backed watchlist with live prices
+- **Chat Persistence** – Messages synced to Firebase Realtime Database
+- **Indian Flag Theme** – Saffron, White, Green, Navy Blue
 
 ## Project Structure
 
@@ -8,20 +19,28 @@ Full-stack finance AI application with FastAPI backend.
 bharat-finance-ai/
 ├── backend/
 │   ├── main.py
+│   ├── mcp_server.py
 │   ├── requirements.txt
 │   └── app/
-│       ├── routes/
+│       ├── routes/          # stock, rsi, macd, query, IPO, MF, macro, sector, portfolio
 │       ├── services/
 │       ├── utils/
 │       └── models/
 ├── frontend/
 │   ├── src/
-│   │   ├── components/
-│   │   ├── pages/
-│   │   ├── services/
+│   │   ├── components/      # Navbar, Chat, StockSearch, Watchlist, RSIGauge, MACDGauge, etc.
+│   │   ├── pages/           # Landing, Dashboard, Auth
+│   │   ├── context/         # AuthContext
+│   │   ├── lib/             # firebase.ts
+│   │   ├── services/        # api.js
 │   │   ├── App.jsx
 │   │   └── main.jsx
-│   └── package.json
+│   ├── package.json
+│   └── tailwind.config.js
+├── docs/
+├── claude_config.json
+├── render.yaml
+├── render_mcp.yaml
 └── README.md
 ```
 
@@ -29,10 +48,11 @@ bharat-finance-ai/
 
 ### Prerequisites
 
-- Python 3.9 or higher
-- pip
+- Python 3.9+
+- Node.js 18+
+- Firebase project (Auth + Realtime Database)
 
-### Install Dependencies
+### Backend
 
 1. Navigate to the backend directory:
 
@@ -40,50 +60,32 @@ bharat-finance-ai/
    cd backend
    ```
 
-2. Create a virtual environment (recommended):
+2. Create and activate a virtual environment:
 
    ```bash
    python -m venv venv
+   # Windows:
+   venv\Scripts\activate
+   # macOS/Linux:
+   source venv/bin/activate
    ```
 
-3. Activate the virtual environment:
-
-   - **Windows:**
-     ```bash
-     venv\Scripts\activate
-     ```
-   - **macOS/Linux:**
-     ```bash
-     source venv/bin/activate
-     ```
-
-4. Install dependencies:
+3. Install dependencies:
 
    ```bash
    pip install -r requirements.txt
    ```
 
-### Run the Server
+4. Start the server:
 
-Start the FastAPI server using uvicorn:
+   ```bash
+   uvicorn main:app --host 127.0.0.1 --port 8000
+   ```
 
-```bash
-uvicorn main:app --reload
-```
+   - API: `http://127.0.0.1:8000`
+   - Swagger: `http://127.0.0.1:8000/docs`
 
-- The API will be available at `http://127.0.0.1:8000`
-- Interactive API docs (Swagger UI) at `http://127.0.0.1:8000/docs`
-- Alternative API docs (ReDoc) at `http://127.0.0.1:8000/redoc`
-
-The `--reload` flag enables auto-reload during development. For production, omit it:
-
-```bash
-uvicorn main:app --host 0.0.0.0 --port 8000
-```
-
-## Frontend
-
-### Run the Frontend
+### Frontend
 
 1. Navigate to the frontend directory:
 
@@ -97,46 +99,78 @@ uvicorn main:app --host 0.0.0.0 --port 8000
    npm install
    ```
 
-3. Start the development server:
+3. Start the dev server:
 
    ```bash
    npm run dev
    ```
 
-- The app will be available at `http://localhost:5173`
-- Ensure the backend is running at `http://localhost:8000` for API calls
+   - App: `http://localhost:5173` (or next available port)
+   - Ensure the backend is running at `http://localhost:8000`
 
-## API
+### Firebase
 
-| Endpoint | Method | Description        |
-|----------|--------|--------------------|
-| `/`      | GET    | Backend status     |
+Configure Firebase in `frontend/src/lib/firebase.ts` with your project config. Ensure:
+
+- **Authentication** – Email/Password sign-in method enabled
+- **Realtime Database** – Rules allow read/write for authenticated users, e.g.:
+
+  ```json
+  {
+    "rules": {
+      "users": {
+        "$uid": {
+          ".read": "$uid === auth.uid",
+          ".write": "$uid === auth.uid"
+        }
+      }
+    }
+  }
+  ```
+
+## API Overview
+
+| Endpoint           | Method | Description                    |
+|--------------------|--------|--------------------------------|
+| `/`                | GET    | Health check                   |
+| `/stock/{symbol}`  | GET    | Stock quote                    |
+| `/stock/search`    | GET    | Search stocks                  |
+| `/stock/popular`   | GET    | Popular stocks                 |
+| `/rsi/{symbol}`    | GET    | RSI for symbol                 |
+| `/macd/{symbol}`   | GET    | MACD for symbol                |
+| `/ask`             | POST   | Natural-language query         |
+| `/ipo/upcoming`    | GET    | Upcoming IPOs                  |
+| `/mutual-fund/search` | GET | Mutual fund search             |
+| See `/docs`        |        | Full API documentation         |
+
+## Environment Variables
+
+| Variable      | Description                          |
+|---------------|--------------------------------------|
+| `CORS_ORIGINS`| Comma-separated frontend URLs        |
 
 ## Deploy to Render
 
-The backend is configured for deployment on [Render](https://render.com).
+The backend is configured for [Render](https://render.com).
 
-### Option 1: Blueprint (recommended)
+### Blueprint
 
-1. Push this repo to GitHub/GitLab/Bitbucket.
-2. In [Render Dashboard](https://dashboard.render.com), create a new **Blueprint**.
-3. Connect your repo and select this repository.
-4. Render will detect `render.yaml` and create the web service.
-5. Add the `CORS_ORIGINS` environment variable with your frontend URL(s), e.g.:
-   - `https://your-frontend.onrender.com` (if deploying frontend on Render)
-   - Or `http://localhost:5173` for local development (default if not set)
+1. Push this repo to GitHub.
+2. In [Render Dashboard](https://dashboard.render.com), create a **Blueprint**.
+3. Connect the repo; Render will use `render.yaml`.
+4. Add `CORS_ORIGINS` with your frontend URL(s).
 
-### Option 2: Manual Web Service
+### Manual Web Service
 
-1. Create a new **Web Service** on Render.
-2. Connect your repository.
-3. Configure:
+1. Create a **Web Service** on Render.
+2. Configure:
    - **Root Directory:** `backend`
-   - **Build Command:** `pip install -r requirements.txt`
-   - **Start Command:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
-4. Add environment variable `CORS_ORIGINS` with your frontend URL (comma-separated for multiple).
+   - **Build:** `pip install -r requirements.txt`
+   - **Start:** `uvicorn main:app --host 0.0.0.0 --port $PORT`
+3. Add `CORS_ORIGINS` (comma-separated URLs).
 
-### After deployment
+After deployment, set the frontend `baseURL` in `api.js` to your Render API URL.
 
-- Your API will be available at `https://<service-name>.onrender.com`
-- Update the frontend `api.js` base URL to point to this URL.
+## License
+
+MIT

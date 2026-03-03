@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../services/api'
-import { onValue, push, query, ref, serverTimestamp } from 'firebase/database'
+import { onChildAdded, push, ref, serverTimestamp } from 'firebase/database'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 
@@ -96,36 +96,40 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
     if (!uid) return
 
     const chatsRef = ref(db, `users/${uid}/chats`)
-    const chatsQuery = query(chatsRef)
 
-    const unsubscribe = onValue(chatsQuery, (snapshot) => {
+    const unsubscribe = onChildAdded(chatsRef, (snapshot) => {
+      const id = snapshot.key
       const val = snapshot.val()
-      if (!val) {
-        setMessages([
+      if (!val) return
+
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === id)) return prev
+        const next = [...prev, { id, ...val }].sort((a, b) => {
+          const ta = typeof a.createdAt === 'number' ? a.createdAt : 0
+          const tb = typeof b.createdAt === 'number' ? b.createdAt : 0
+          return ta - tb
+        })
+        return next
+      })
+    })
+
+    const t = setTimeout(() => {
+      setMessages((prev) => {
+        if (prev.length > 0) return prev
+        return [
           {
             id: 'welcome',
             sender: 'bot',
             text: 'Hi, I am BharatFinanceAI assistant. Ask me about stocks, RSI, MACD, SIP, mutual funds, IPOs, or macro data (repo rate, inflation, GDP).',
           },
-        ])
-        return
-      }
-
-      const next = Object.entries(val).map(([id, msg]) => ({
-        id,
-        ...msg,
-      }))
-
-      next.sort((a, b) => {
-        const ta = typeof a.createdAt === 'number' ? a.createdAt : 0
-        const tb = typeof b.createdAt === 'number' ? b.createdAt : 0
-        return ta - tb
+        ]
       })
+    }, 400)
 
-      setMessages(next)
-    })
-
-    return () => unsubscribe()
+    return () => {
+      clearTimeout(t)
+      unsubscribe()
+    }
   }, [uid])
 
   useEffect(() => {
@@ -209,10 +213,10 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
               className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2 text-sm whitespace-pre-wrap break-words border ${
+                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words border-2 ${
                   msg.sender === 'user'
-                    ? 'bg-orange-500 text-white border-orange-500 rounded-br-sm'
-                    : 'bg-slate-50 text-slate-900 border-slate-300 rounded-bl-sm'
+                    ? 'bg-bharat-saffron text-white border-bharat-saffron rounded-br-sm'
+                    : 'bg-white text-bharat-navy border-bharat-navy rounded-bl-sm'
                 }`}
               >
                 {msg.text}
@@ -237,7 +241,7 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
               type="button"
               onClick={handleSend}
               disabled={loading || !input.trim()}
-              className="px-4 py-2 rounded-lg bg-green-500 hover:bg-green-600 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-4 py-2 rounded-lg bg-bharat-saffron hover:bg-orange-500 text-bharat-navy text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {loading ? 'Sending...' : 'Send'}
             </button>

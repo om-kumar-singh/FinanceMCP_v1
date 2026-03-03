@@ -138,6 +138,34 @@ def get_top_gainers_losers(count: int = 10) -> dict:
     return _fn(count)
 
 
+@mcp.tool()
+def get_market_news(ticker: str) -> list[dict]:
+    """
+    Get latest market news for a given ticker using yfinance.
+
+    Args:
+        ticker: NSE/BSE stock symbol or index symbol.
+                Examples:
+                  - RELIANCE.NS, TCS.NS, HDFCBANK.NS
+                  - NSE, NIFTY, NIFTY50 (mapped to NIFTY 50 index)
+                  - BSE, SENSEX (mapped to BSE Sensex index)
+
+    Returns:
+        List of news items with:
+          - title
+          - publisher
+          - link
+          - publishedAt (formatted in Indian Standard Time)
+
+    Example:
+        get_market_news("RELIANCE.NS")
+        get_market_news("NSE")
+    """
+    from app.services.news_service import get_market_news as _fn
+
+    return _fn(ticker)
+
+
 # ── MUTUAL FUND TOOLS ────────────────────────────────────
 
 @mcp.tool()

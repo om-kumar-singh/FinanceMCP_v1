@@ -2,6 +2,7 @@
 IPO tracking service using web scraping.
 """
 
+import os
 import re
 from datetime import datetime
 from typing import Any
@@ -10,12 +11,21 @@ import requests
 import yfinance as yf
 from bs4 import BeautifulSoup
 
-IPO_LIST_URL = "https://www.chittorgarh.com/ipo/ipo_list.asp"
-IPO_PERFORMANCE_URL = "https://www.chittorgarh.com/report/ipo-listing-performance-fy2025/93/"
-GMP_URL = "https://www.investorgain.com/report/live-ipo-gmp/331/"
-MAX_IPOS = 5
-REQUEST_TIMEOUT = 15
-USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+IPO_LIST_URL = os.getenv(
+    "IPO_LIST_URL",
+    "https://www.chittorgarh.com/ipo/ipo_list.asp",
+)
+IPO_PERFORMANCE_URL = os.getenv(
+    "IPO_PERFORMANCE_URL",
+    "https://www.chittorgarh.com/report/ipo-listing-performance-fy2025/93/",
+)
+GMP_URL = os.getenv(
+    "GMP_URL",
+    "https://www.investorgain.com/report/live-ipo-gmp/331/",
+)
+MAX_IPOS = int(os.getenv("IPO_MAX_COUNT", "5"))
+REQUEST_TIMEOUT = int(os.getenv("IPO_REQUEST_TIMEOUT", "15"))
+USER_AGENT = os.getenv("IPO_USER_AGENT", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
 
 
 def _extract_ipo_from_detail_page(url: str, name: str) -> dict[str, str] | None:

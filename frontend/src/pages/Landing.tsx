@@ -9,15 +9,15 @@ const Landing: FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 lg:py-24 grid gap-10 lg:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] items-center">
           <div>
             <p className="inline-flex items-center rounded-full bg-bharat-white/10 px-3 py-1 text-xs font-semibold tracking-wide text-bharat-white/80 mb-4">
-              Made for Indian traders &amp; investors
+              Live Indian stocks · Mutual funds · AI advisor
             </p>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight">
-              Indian Markets Intelligence
+              One workspace for Indian markets
             </h1>
             <p className="mt-4 text-sm sm:text-base text-bharat-white/80 max-w-xl">
-              BharatFinanceAI combines live NSE data, technical indicators, and an AI
-              assistant so you can move from raw charts to clear trading decisions
-              in seconds.
+              BharatFinanceAI brings together live NSE stocks, mutual fund NAVs and SIP
+              projections, IPO and sector data, and an AI assistant so you can move from
+              scattered tools to one clean, India-first workflow.
             </p>
 
             <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -37,16 +37,16 @@ const Landing: FC = () => {
 
             <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 gap-4 text-xs sm:text-sm text-bharat-white/80">
               <div className="border-l-2 border-bharat-saffron pl-3">
-                <p className="font-semibold text-bharat-white">NSE Focused</p>
-                <p>Built around Indian equities, indices, and sectors.</p>
+                <p className="font-semibold text-bharat-white">Stocks &amp; Signals</p>
+                <p>Search NSE symbols, track price, RSI/MACD, and watchlists.</p>
               </div>
               <div className="border-l-2 border-emerald-400 pl-3">
-                <p className="font-semibold text-bharat-white">Signal Driven</p>
-                <p>RSI/MACD, Bollinger Bands, and trend detection.</p>
+                <p className="font-semibold text-bharat-white">Mutual Funds &amp; SIP</p>
+                <p>Search schemes, monitor NAV and daily change, and plan SIPs.</p>
               </div>
               <div className="border-l-2 border-sky-400 pl-3 sm:block hidden">
-                <p className="font-semibold text-bharat-white">AI Assistance</p>
-                <p>Ask natural language questions about any stock.</p>
+                <p className="font-semibold text-bharat-white">News, IPOs &amp; Macro</p>
+                <p>Read market headlines and query IPO, sector, and macro data.</p>
               </div>
             </div>
           </div>
@@ -82,40 +82,39 @@ const Landing: FC = () => {
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl sm:text-3xl font-semibold text-bharat-navy mb-6">
-            Built for serious market participants
+            What you get with BharatFinanceAI
           </h2>
           <div className="grid gap-6 md:grid-cols-3">
             <div className="bg-white rounded-xl border-2 border-slate-400 shadow-sm hover:shadow-md transition-shadow p-5">
               <h3 className="text-lg font-semibold text-bharat-navy mb-2">
-                Technical Indicators (RSI/MACD)
+                Market view for NSE stocks
               </h3>
               <p className="text-sm text-slate-700">
-                BharatFinanceAI computes RSI and MACD for your symbols so you can quickly
-                spot overbought, oversold, and momentum shifts without juggling multiple
-                charting tools. This helps you time entries and exits with more
-                confidence instead of trading purely on gut feeling.
+                Search Indian equities by name or symbol, see live price, change, volume,
+                and day range, and add ideas to a synced watchlist. Technical indicators
+                like RSI and MACD are computed in the backend so you can sanity-check
+                momentum before acting.
               </p>
             </div>
             <div className="bg-white rounded-xl border-2 border-slate-400 shadow-sm hover:shadow-md transition-shadow p-5">
               <h3 className="text-lg font-semibold text-bharat-navy mb-2">
-                Real-time NSE Data
+                Mutual funds, SIPs, and MF watchlist
               </h3>
               <p className="text-sm text-slate-700">
-                Live price and volume data from the NSE keeps every analysis grounded in
-                the current market, not yesterday&apos;s close. Intraday traders can
-                react faster to breakouts, reversals, and sector rotations as they
-                happen.
+                Search mutual funds via `mfapi.in`, view latest NAV and daily change, run
+                SIP projections, and maintain your own mutual fund watchlist backed by
+                Firebase so favourite schemes stay in sync across devices.
               </p>
             </div>
             <div className="bg-white rounded-xl border-2 border-slate-400 shadow-sm hover:shadow-md transition-shadow p-5">
               <h3 className="text-lg font-semibold text-bharat-navy mb-2">
-                AI Financial Assistant
+                AI advisor, IPOs, sectors, and macro
               </h3>
               <p className="text-sm text-slate-700">
-                Ask questions like &quot;What&apos;s the RSI of TCS?&quot; or
-                &quot;Summarise my portfolio risk&quot; and get structured answers in
-                plain English. This reduces research time and lets you run deeper checks
-                on your ideas before putting capital at risk.
+                Chat with an embedded AI assistant to analyse stocks, SIP plans, and
+                market terms while the backend exposes routes for IPO tracking, sector
+                performance, repo rate, inflation, GDP, and portfolio analytics so more
+                advanced workflows can plug in over time.
               </p>
             </div>
           </div>
@@ -129,12 +128,11 @@ const Landing: FC = () => {
             About BharatFinanceAI
           </h2>
           <p className="text-sm sm:text-base text-slate-700 leading-relaxed">
-            BharatFinanceAI is built with one goal: to give Indian traders and investors
-            institutional-grade tools without institutional complexity. By combining
-            real-time NSE data, battle-tested technical indicators, and an AI assistant
-            that understands your questions, we aim to make disciplined, data-backed
-            decision making accessible to everyone from first-time investors to seasoned
-            market professionals.
+            BharatFinanceAI is a full-stack playground for Indian markets, built with a
+            FastAPI backend (yfinance, mfapi.in, macro data sources) and a React +
+            Firebase frontend. The goal is to offer institutional-style tools—stock
+            search, technical analysis, mutual funds and SIP calculators, portfolio and
+            macro views—without the usual complexity, in a clean India-first interface.
           </p>
         </div>
       </section>

@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import io
 import logging
+import os
 from difflib import SequenceMatcher
 from typing import Any
 
@@ -16,7 +17,7 @@ from app.utils.cache import cacheable
 
 logger = logging.getLogger(__name__)
 
-NSE_CSV_URL = "https://archives.nseindia.com/content/equities/EQUITY_L.csv"
+NSE_CSV_URL = os.getenv("NSE_CSV_URL", "https://archives.nseindia.com/content/equities/EQUITY_L.csv")
 
 STOCK_DATABASE: list[dict[str, Any]] = []
 SYMBOL_INDEX: dict[str, list[dict[str, Any]]] = {}

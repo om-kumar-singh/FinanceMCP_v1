@@ -1,0 +1,16 @@
+# Environment (never commit secrets)
+.env
+.env.local
+.env.*.local
+
+# Python
+venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+dist/
+build/

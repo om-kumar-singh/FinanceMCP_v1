@@ -4,13 +4,13 @@ import { getAnalytics, isSupported, type Analytics } from 'firebase/analytics'
 import { getDatabase, type Database } from 'firebase/database'
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyDHPMqWmnZGBvalrRQ4ccim-Y3tm-LUr3A',
-  authDomain: 'financemcp-4d400.firebaseapp.com',
-  projectId: 'financemcp-4d400',
-  storageBucket: 'financemcp-4d400.firebasestorage.app',
-  messagingSenderId: '393265429143',
-  appId: '1:393265429143:web:c4e4a8de143266f92c07d2',
-  measurementId: 'G-S40P9V48V0',
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 }
 
 let app: FirebaseApp
@@ -19,9 +19,6 @@ if (!getApps().length) {
 } else {
   app = getApp()
 }
-
-console.log('Firebase App Name:', app.name)
-console.log('Config Project ID:', firebaseConfig.projectId)
 
 const auth: Auth = getAuth(app)
 const db: Database = getDatabase(app)

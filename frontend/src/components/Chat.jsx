@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import api from '../services/api'
-import { onChildAdded, push, ref, serverTimestamp } from 'firebase/database'
+import { onValue, push, ref, remove, serverTimestamp, set, update } from 'firebase/database'
 import { db } from '../lib/firebase'
 import { useAuth } from '../context/AuthContext'
 
@@ -87,56 +89,124 @@ function formatBotResponse(response) {
 function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) {
   const { user } = useAuth()
   const uid = user?.uid
+
+  const [sessions, setSessions] = useState([])
+  const [activeSessionId, setActiveSessionId] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [editingMessageId, setEditingMessageId] = useState(null)
+  const [editingText, setEditingText] = useState('')
+  const [renamingSessionId, setRenamingSessionId] = useState(null)
+  const [renamingTitle, setRenamingTitle] = useState('')
+
   const messagesEndRef = useRef(null)
 
+  // Load chat sessions list
   useEffect(() => {
     if (!uid) return
 
     const chatsRef = ref(db, `users/${uid}/chats`)
+    const unsubscribe = onValue(chatsRef, (snapshot) => {
+      const val = snapshot.val() || {}
+      const items = Object.entries(val).map(([id, data]) => ({
+        id,
+        title: data.title || 'New Chat',
+        createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
+        updatedAt: typeof data.updatedAt === 'number' ? data.updatedAt : data.createdAt || 0,
+      }))
+      items.sort((a, b) => b.updatedAt - a.updatedAt)
+      setSessions(items)
 
-    const unsubscribe = onChildAdded(chatsRef, (snapshot) => {
-      const id = snapshot.key
-      const val = snapshot.val()
-      if (!val) return
-
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === id)) return prev
-        const next = [...prev, { id, ...val }].sort((a, b) => {
-          const ta = typeof a.createdAt === 'number' ? a.createdAt : 0
-          const tb = typeof b.createdAt === 'number' ? b.createdAt : 0
-          return ta - tb
-        })
-        return next
-      })
+      if (!activeSessionId && items.length > 0) {
+        setActiveSessionId(items[0].id)
+      }
     })
 
-    const t = setTimeout(() => {
-      setMessages((prev) => {
-        if (prev.length > 0) return prev
-        return [
+    return () => unsubscribe()
+  }, [uid, activeSessionId])
+
+  // Load messages for active session
+  useEffect(() => {
+    if (!uid || !activeSessionId) {
+      setMessages([
+        {
+          id: 'welcome',
+          sender: 'bot',
+          text: 'Hi, I am BharatFinanceAI. I know your saved stocks, Indian markets, and macro data. Ask concise, focused questions for best results.',
+        },
+      ])
+      return
+    }
+
+    const msgsRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages`)
+    const unsubscribe = onValue(msgsRef, (snapshot) => {
+      const val = snapshot.val() || {}
+      const list = Object.entries(val).map(([id, data]) => ({
+        id,
+        ...data,
+      }))
+      list.sort((a, b) => {
+        const ta = typeof a.createdAt === 'number' ? a.createdAt : 0
+        const tb = typeof b.createdAt === 'number' ? b.createdAt : 0
+        return ta - tb
+      })
+      if (list.length === 0) {
+        setMessages([
           {
             id: 'welcome',
             sender: 'bot',
-            text: 'Hi, I am BharatFinanceAI assistant. Ask me about stocks, RSI, MACD, SIP, mutual funds, IPOs, or macro data (repo rate, inflation, GDP).',
+            text: 'Hi, I am BharatFinanceAI. I know your saved stocks, Indian markets, and macro data. Ask concise, focused questions for best results.',
           },
-        ]
-      })
-    }, 400)
+        ])
+      } else {
+        setMessages(list)
+      }
+    })
 
-    return () => {
-      clearTimeout(t)
-      unsubscribe()
-    }
-  }, [uid])
+    return () => unsubscribe()
+  }, [uid, activeSessionId])
 
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages])
+  }, [messages, loading])
+
+  const ensureSession = async () => {
+    if (!uid) throw new Error('Not signed in')
+    if (activeSessionId) return activeSessionId
+
+    const chatsRef = ref(db, `users/${uid}/chats`)
+    const newRef = push(chatsRef)
+    await set(newRef, {
+      title: 'New Chat',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+    setActiveSessionId(newRef.key)
+    return newRef.key
+  }
+
+  const handleNewChat = async () => {
+    if (!uid) return
+    const chatsRef = ref(db, `users/${uid}/chats`)
+    const newRef = push(chatsRef)
+    await set(newRef, {
+      title: 'New Chat',
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+    setActiveSessionId(newRef.key)
+    setMessages([
+      {
+        id: 'welcome',
+        sender: 'bot',
+        text: 'New chat started. Ask anything about Indian markets, your watchlist, or macro data.',
+      },
+    ])
+    setInput('')
+  }
 
   const handleSend = async () => {
     const trimmed = input.trim()
@@ -150,27 +220,41 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
         throw new Error('Not signed in')
       }
 
-      const chatsRef = ref(db, `users/${uid}/chats`)
-      await push(chatsRef, {
+      const sessionId = await ensureSession()
+      const basePath = `users/${uid}/chats/${sessionId}`
+      const msgsRef = ref(db, `${basePath}/messages`)
+
+      const userMsgRef = push(msgsRef)
+      await set(userMsgRef, {
         sender: 'user',
         text: trimmed,
         createdAt: serverTimestamp(),
       })
 
+      // For future MCP/LLM: pass watchlist context (optional, currently ignored by backend)
       const response = await api.post('/ask', { query: trimmed })
       const botText = formatBotResponse(response.data)
-      await push(chatsRef, {
+
+      const botMsgRef = push(msgsRef)
+      await set(botMsgRef, {
         sender: 'bot',
         text: botText,
         createdAt: serverTimestamp(),
+      })
+
+      await update(ref(db, basePath), {
+        updatedAt: serverTimestamp(),
+        // Simple heuristic: title from first few words of user question
+        title: trimmed.length > 40 ? `${trimmed.slice(0, 40)}…` : trimmed,
       })
     } catch (error) {
       console.error('Chat /ask error:', error)
       const detail =
         error.response?.data?.detail || error.message || 'Sorry, something went wrong while contacting the server.'
-      if (uid) {
-        const chatsRef = ref(db, `users/${uid}/chats`)
-        await push(chatsRef, {
+      if (uid && activeSessionId) {
+        const msgsRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages`)
+        const errRef = push(msgsRef)
+        await set(errRef, {
           sender: 'bot',
           text: detail,
           createdAt: serverTimestamp(),
@@ -184,7 +268,111 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
-      handleSend()
+      if (editingMessageId) {
+        handleSaveEdit()
+      } else {
+        handleSend()
+      }
+    }
+  }
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!uid || !activeSessionId || !messageId) return
+    const msgRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages/${messageId}`)
+    await remove(msgRef)
+  }
+
+  const handleStartEdit = (msg) => {
+    setEditingMessageId(msg.id)
+    setEditingText(msg.text)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!uid || !activeSessionId || !editingMessageId) return
+    const trimmed = editingText.trim()
+    if (!trimmed) {
+      setEditingMessageId(null)
+      return
+    }
+    const msgRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages/${editingMessageId}`)
+    await update(msgRef, { text: trimmed })
+    setEditingMessageId(null)
+
+    try {
+      setLoading(true)
+      const response = await api.post('/ask', { query: trimmed })
+      const botText = formatBotResponse(response.data)
+
+      const lastBot = [...messages].filter((m) => m.sender === 'bot').slice(-1)[0]
+      if (lastBot?.id) {
+        const botRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages/${lastBot.id}`)
+        await update(botRef, { text: botText })
+      }
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRenameSession = async (sessionId, title) => {
+    if (!uid || !sessionId) return
+    const trimmed = (title || '').trim()
+    if (!trimmed) {
+      setRenamingSessionId(null)
+      return
+    }
+    const sRef = ref(db, `users/${uid}/chats/${sessionId}`)
+    await update(sRef, { title: trimmed, updatedAt: serverTimestamp() })
+    setRenamingSessionId(null)
+  }
+
+  const handleDeleteSession = async (sessionId) => {
+    if (!uid || !sessionId) return
+    const sRef = ref(db, `users/${uid}/chats/${sessionId}`)
+    await remove(sRef)
+    if (activeSessionId === sessionId) {
+      setActiveSessionId(null)
+      setMessages([
+        {
+          id: 'welcome',
+          sender: 'bot',
+          text: 'Hi, I am BharatFinanceAI. Start a new chat to ask about your watchlist, Indian stocks, or macro data.',
+        },
+      ])
+    }
+  }
+
+  const latestBotMessage = [...messages].filter((m) => m.sender === 'bot').slice(-1)[0]
+  const latestUserMessage = [...messages].filter((m) => m.sender === 'user').slice(-1)[0]
+
+  const handleCopyLatest = async () => {
+    if (!latestBotMessage?.text) return
+    try {
+      await navigator.clipboard.writeText(latestBotMessage.text)
+    } catch {
+      // ignore
+    }
+  }
+
+  const handleRegenerate = async () => {
+    if (!uid || !activeSessionId || !latestUserMessage) return
+    try {
+      setLoading(true)
+      const response = await api.post('/ask', { query: latestUserMessage.text })
+      const botText = formatBotResponse(response.data)
+      if (latestBotMessage?.id) {
+        const botRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages/${latestBotMessage.id}`)
+        await update(botRef, { text: botText })
+      } else {
+        const msgsRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages`)
+        const botRef = push(msgsRef)
+        await set(botRef, {
+          sender: 'bot',
+          text: botText,
+          createdAt: serverTimestamp(),
+        })
+      }
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -196,55 +384,282 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
   return (
     <div className={outerClassName}>
       <div className={cardClassName}>
-        <div
-          className={`px-4 py-3 border-b-2 border-slate-400 flex items-center justify-between bg-gradient-to-r from-orange-50 to-white ${
-            embedded ? '' : 'rounded-t-xl'
-          }`}
-        >
-          <h2 className="text-lg font-semibold text-slate-900">AI Chat</h2>
-          {loading && <span className="text-xs text-orange-500">BharatFinanceAI is thinking...</span>}
-        </div>
-
-        {/* Messages */}
-        <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
-          {messages.map((msg, index) => (
-            <div
-              key={msg.id || index}
-              className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words border-2 ${
-                  msg.sender === 'user'
-                    ? 'bg-bharat-saffron text-white border-bharat-saffron rounded-br-sm'
-                    : 'bg-white text-bharat-navy border-bharat-navy rounded-bl-sm'
-                }`}
+        <div className="flex h-full">
+          {/* Sidebar - Recent Chats */}
+          <aside className="w-60 border-r border-slate-200 bg-slate-50 flex flex-col">
+            <div className="px-3 py-3 border-b border-slate-200">
+              <h2 className="text-xs font-semibold text-bharat-navy uppercase tracking-wide mb-2">
+                Recent Chats
+              </h2>
+              <button
+                type="button"
+                onClick={handleNewChat}
+                className="w-full px-3 py-1.5 rounded-lg bg-bharat-saffron text-bharat-navy text-xs font-semibold hover:bg-orange-500 transition-colors"
               >
-                {msg.text}
+                + New Chat
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
+              {sessions.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setActiveSessionId(s.id)}
+                  className={`w-full text-left px-2 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                    activeSessionId === s.id
+                      ? 'border-bharat-navy bg-white text-bharat-navy'
+                      : 'border-transparent bg-transparent text-slate-700 hover:bg-white hover:border-slate-200'
+                  }`}
+                >
+                  <span className="flex-1 min-w-0">
+                    {renamingSessionId === s.id ? (
+                      <input
+                        autoFocus
+                        value={renamingTitle}
+                        onChange={(e) => setRenamingTitle(e.target.value)}
+                        onBlur={() => handleRenameSession(s.id, renamingTitle)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault()
+                            handleRenameSession(s.id, renamingTitle)
+                          }
+                        }}
+                        className="w-full bg-white border border-bharat-navy/40 rounded px-1 py-0.5 text-[11px] outline-none"
+                      />
+                    ) : (
+                      <span className="block truncate">{s.title}</span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setRenamingSessionId(s.id)
+                        setRenamingTitle(s.title || '')
+                      }}
+                      className="text-slate-400 hover:text-bharat-navy"
+                      title="Rename chat"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDeleteSession(s.id)
+                      }}
+                      className="text-slate-400 hover:text-red-600"
+                      title="Delete chat"
+                    >
+                      🗑
+                    </button>
+                  </span>
+                </button>
+              ))}
+              {sessions.length === 0 && (
+                <p className="text-[11px] text-slate-500 px-1">
+                  No chats yet. Start a new conversation to see it here.
+                </p>
+              )}
+            </div>
+          </aside>
+
+          {/* Main chat area */}
+          <div className="flex-1 flex flex-col">
+            <div
+              className={`px-4 py-3 border-b-2 border-slate-400 flex items-center justify-between bg-gradient-to-r from-orange-50 to-white ${
+                embedded ? '' : 'rounded-t-xl'
+              }`}
+            >
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">BharatFinanceAI – AI Advisor</h2>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  You are BharatFinanceAI. You have access to the user&apos;s saved stocks and live NSE/BSE data via MCP tools. Be concise, professional, and use Indian financial terminology.
+                </p>
+              </div>
+              {loading && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-bharat-navy">Typing</span>
+                  <span className="flex gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-bharat-navy animate-bounce [animation-delay:-0.2s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-bharat-navy animate-bounce [animation-delay:-0.1s]" />
+                    <span className="w-1.5 h-1.5 rounded-full bg-bharat-navy animate-bounce" />
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Messages */}
+            <div className="flex-1 overflow-y-auto px-3 py-4 space-y-3">
+              {messages.map((msg, index) => {
+                const isUser = msg.sender === 'user'
+                const isEditing = editingMessageId === msg.id
+                const canEdit = isUser && latestUserMessage && latestUserMessage.id === msg.id
+                return (
+                  <div
+                    key={msg.id || index}
+                    className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className="max-w-[80%] flex flex-col gap-1">
+                      <div
+                        className={`rounded-2xl px-4 py-2.5 text-sm whitespace-pre-wrap break-words border-2 ${
+                          isUser
+                            ? 'bg-bharat-saffron text-white border-bharat-saffron rounded-br-sm self-end'
+                            : 'bg-white text-bharat-navy border-bharat-navy rounded-bl-sm self-start'
+                        }`}
+                      >
+                        {isEditing ? (
+                          <textarea
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            className="w-full bg-transparent border border-white/40 rounded px-2 py-1 text-sm outline-none"
+                            rows={2}
+                          />
+                        ) : isUser ? (
+                          msg.text
+                        ) : (
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                              p: ({ node, ...props }) => (
+                                <p className="mb-1 last:mb-0" {...props} />
+                              ),
+                              strong: ({ node, ...props }) => (
+                                <strong className="font-semibold" {...props} />
+                              ),
+                              ul: ({ node, ...props }) => (
+                                <ul className="list-disc pl-5 mb-1 last:mb-0" {...props} />
+                              ),
+                              ol: ({ node, ...props }) => (
+                                <ol className="list-decimal pl-5 mb-1 last:mb-0" {...props} />
+                              ),
+                              table: ({ node, ...props }) => (
+                                <div className="overflow-x-auto">
+                                  <table
+                                    className="min-w-full text-xs border border-slate-200 mb-1"
+                                    {...props}
+                                  />
+                                </div>
+                              ),
+                              th: ({ node, ...props }) => (
+                                <th
+                                  className="border border-slate-200 px-2 py-1 bg-slate-50 text-left"
+                                  {...props}
+                                />
+                              ),
+                              td: ({ node, ...props }) => (
+                                <td className="border border-slate-200 px-2 py-1" {...props} />
+                              ),
+                            }}
+                          >
+                            {msg.text}
+                          </ReactMarkdown>
+                        )}
+                      </div>
+                      <div
+                        className={`flex items-center gap-2 ${
+                          isUser ? 'justify-end text-[10px]' : 'justify-start text-[10px]'
+                        } text-slate-400`}
+                      >
+                        {isUser && (
+                          <>
+                            {canEdit && (
+                              <button
+                                type="button"
+                                onClick={() => handleStartEdit(msg)}
+                                className="hover:text-bharat-navy"
+                              >
+                                Edit
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              className="hover:text-red-600"
+                            >
+                              Delete
+                            </button>
+                          </>
+                        )}
+                        {!isUser && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="hover:text-red-600"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              {loading && (
+                <div className="flex justify-start">
+                  <div className="bg-white text-bharat-navy border-2 border-bharat-navy rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm flex items-center gap-2">
+                    <span>Thinking with FinanceMCP</span>
+                    <span className="flex gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-bharat-navy animate-bounce [animation-delay:-0.2s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-bharat-navy animate-bounce [animation-delay:-0.1s]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-bharat-navy animate-bounce" />
+                    </span>
+                  </div>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+
+            {/* Latest AI tools */}
+            {latestBotMessage && (
+              <div className="px-4 pb-2 flex justify-end gap-2 text-[11px]">
+                <button
+                  type="button"
+                  onClick={handleCopyLatest}
+                  className="px-2 py-1 rounded-full border border-slate-300 text-slate-700 hover:border-bharat-navy hover:text-bharat-navy transition-colors"
+                >
+                  Copy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleRegenerate}
+                  disabled={loading}
+                  className="px-2 py-1 rounded-full border border-bharat-navy text-bharat-navy hover:bg-bharat-navy hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Regenerate
+                </button>
+              </div>
+            )}
+
+            {/* Input */}
+            <div
+              className={`border-t-2 border-slate-400 px-3 py-3 bg-slate-50 ${
+                embedded ? '' : 'rounded-b-xl'
+              }`}
+            >
+              <div className="flex items-end gap-2">
+                <textarea
+                  rows={1}
+                  value={editingMessageId ? editingText : input}
+                  onChange={(e) =>
+                    editingMessageId ? setEditingText(e.target.value) : setInput(e.target.value)
+                  }
+                  onKeyDown={handleKeyDown}
+                  placeholder='Ask a question, e.g. "What is the RSI of Reliance?"'
+                  className="flex-1 resize-none rounded-lg bg-white text-slate-900 border-2 border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400"
+                />
+                <button
+                  type="button"
+                  onClick={editingMessageId ? handleSaveEdit : handleSend}
+                  disabled={loading || !((editingMessageId ? editingText : input).trim())}
+                  className="px-4 py-2 rounded-lg bg-bharat-saffron hover:bg-orange-500 text-bharat-navy text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {editingMessageId ? 'Save' : loading ? 'Sending...' : 'Send'}
+                </button>
               </div>
             </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* Input */}
-        <div className={`border-t-2 border-slate-400 px-3 py-3 bg-slate-50 ${embedded ? '' : 'rounded-b-xl'}`}>
-          <div className="flex items-end gap-2">
-            <textarea
-              rows={1}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder='Ask a question, e.g. "What is the RSI of Reliance?"'
-              className="flex-1 resize-none rounded-lg bg-white text-slate-900 border-2 border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:border-orange-400 placeholder:text-slate-400"
-            />
-            <button
-              type="button"
-              onClick={handleSend}
-              disabled={loading || !input.trim()}
-              className="px-4 py-2 rounded-lg bg-bharat-saffron hover:bg-orange-500 text-bharat-navy text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              {loading ? 'Sending...' : 'Send'}
-            </button>
           </div>
         </div>
       </div>

@@ -4,14 +4,18 @@ A premium Indian fintech-style full-stack application for **Indian Markets Intel
 
 ## Features
 
-- **Authentication** – Firebase Auth (email/password) with protected routes
-- **Dashboard** – Tabbed interface: Market View, Technical Analysis, AI Advisor
-- **Market Overview** – Stock search, live NSE price data, add-to-watchlist
-- **Technical Lab** – RSI and MACD with visual gauges (oversold/overbought)
-- **AI Advisor** – Natural-language chat for stocks, SIP, mutual funds, IPOs, macro data
-- **Watchlist** – Firebase-backed watchlist with live prices
-- **Chat Persistence** – Messages synced to Firebase Realtime Database
-- **Indian Flag Theme** – Saffron, White, Green, Navy Blue
+- **Authentication** – Firebase Auth (email/password) with protected routes and user-specific data (watchlists, activity).
+- **Unified dashboard** – Tabbed interface for **Market View**, **Technical Analysis**, **Mutual Funds**, and **AI Advisor**.
+- **Market overview (stocks)** – Search NSE symbols, view live price/volume/day range from yfinance, and add ideas to a synced equities watchlist.
+- **Technical lab** – Backend-calculated RSI and MACD with visual gauges and numeric breakdowns to spot overbought/oversold and momentum shifts.
+- **Mutual funds & SIP** – Search schemes via `mfapi.in`, view latest NAV and daily change, run SIP projections, and maintain a mutual fund watchlist.
+- **IPO & SME tools** – Upcoming IPOs, GMP, listing performance, and SME stock analysis routes for deeper primary-market tracking.
+- **Sectors & macro** – Sector performance summaries plus repo rate, inflation, and GDP routes for macro context.
+- **Portfolio analytics (API)** – Endpoints to post a portfolio and get risk/return summaries and sector breakdowns (ready for future UI wiring).
+- **AI advisor** – Natural-language chat for stocks, SIPs, mutual funds, IPOs, and macro concepts, embedded directly into the dashboard.
+- **Watchlists** – Firebase-backed stock and mutual fund watchlists with optional local-storage mirroring for a smoother UX.
+- **Chat persistence** – Messages and activity synced to Firebase Realtime Database.
+- **Indian flag theme** – Saffron, white, green, and navy blue palette tailored for Indian markets.
 
 ## Project Structure
 
@@ -137,24 +141,71 @@ A short video walkthrough of BharatFinanceAI is available:
 
 ## API Overview
 
-| Endpoint           | Method | Description                    |
-|--------------------|--------|--------------------------------|
-| `/`                | GET    | Health check                   |
-| `/stock/{symbol}`  | GET    | Stock quote                    |
-| `/stock/search`    | GET    | Search stocks                  |
-| `/stock/popular`   | GET    | Popular stocks                 |
-| `/rsi/{symbol}`    | GET    | RSI for symbol                 |
-| `/macd/{symbol}`   | GET    | MACD for symbol                |
-| `/ask`             | POST   | Natural-language query         |
-| `/ipo/upcoming`    | GET    | Upcoming IPOs                  |
-| `/mutual-fund/search` | GET | Mutual fund search             |
-| See `/docs`        |        | Full API documentation         |
+High‑level view of key backend routes (see `/docs` for the full OpenAPI schema):
+
+| Endpoint                         | Method | Description                                        |
+|----------------------------------|--------|----------------------------------------------------|
+| `/`                              | GET    | Health check                                       |
+| `/stock/{symbol}`                | GET    | Stock quote for NSE/BSE symbol                     |
+| `/stock/search`                  | GET    | Search stocks by name or symbol                    |
+| `/stock/popular`                 | GET    | Curated list of popular NSE stocks                 |
+| `/rsi/{symbol}`                  | GET    | RSI for a symbol                                   |
+| `/macd/{symbol}`                 | GET    | MACD for a symbol                                  |
+| `/news/{symbol}`                 | GET    | Market news for a stock/index via yfinance         |
+| `/mutual-fund/{scheme_code}`     | GET    | Latest NAV for a mutual fund scheme                |
+| `/mutual-fund/search`            | GET    | Mutual fund search by name/keyword                 |
+| `/sip`                           | GET    | SIP future value calculator                        |
+| `/capital-gains`                 | GET    | Capital gains/tax calculator (equity/debt)         |
+| `/ipos`                          | GET    | Upcoming IPOs                                      |
+| `/gmp`                           | GET    | Grey Market Premium data                           |
+| `/ipo-performance`               | GET    | Recent IPO listing performance                     |
+| `/sme/{symbol}`                  | GET    | SME stock analysis                                 |
+| `/sector/{sector_name}`          | GET    | Detailed performance for a sector                  |
+| `/sectors/summary`               | GET    | Performance summary across sectors                 |
+| `/sectors/list`                  | GET    | List of supported sector names                     |
+| `/repo-rate`                     | GET    | Latest RBI repo rate                               |
+| `/inflation`                     | GET    | India CPI inflation time‑series                    |
+| `/gdp`                           | GET    | India GDP growth time‑series                       |
+| `/portfolio/analyze`             | POST   | Portfolio risk/return and sector analytics         |
+| `/portfolio/summary`             | POST   | Lightweight portfolio summary                       |
 
 ## Environment Variables
 
-| Variable      | Description                          |
-|---------------|--------------------------------------|
-| `CORS_ORIGINS`| Comma-separated frontend URLs        |
+All API keys and secrets must be set via environment variables. Copy `.env.example` to `.env` in each directory and fill in values. **Never commit `.env` files** — they are in `.gitignore`.
+
+### Backend
+
+Copy `backend/.env.example` to `backend/.env`:
+
+| Variable              | Description                                  |
+|-----------------------|----------------------------------------------|
+| `CORS_ORIGINS`        | Comma-separated list of frontend URLs        |
+| `MF_API_BASE_URL`     | Mutual fund API base (optional, has default) |
+| `NSE_CSV_URL`         | NSE equities list URL (optional)             |
+| `INFLATION_API_URL`   | World Bank inflation API (optional)          |
+| `GDP_API_URL`         | World Bank GDP API (optional)                |
+| `IPO_LIST_URL`        | IPO list source URL (optional)               |
+| `IPO_PERFORMANCE_URL` | IPO performance source (optional)            |
+| `GMP_URL`             | GMP data source URL (optional)               |
+
+### Frontend (Vite)
+
+Copy `frontend/.env.example` to `frontend/.env`:
+
+| Variable                        | Description                                      |
+|---------------------------------|--------------------------------------------------|
+| `VITE_API_URL`                  | Backend API base URL                             |
+| `VITE_FIREBASE_API_KEY`         | Firebase API key (required)                      |
+| `VITE_FIREBASE_AUTH_DOMAIN`     | Firebase auth domain                             |
+| `VITE_FIREBASE_PROJECT_ID`      | Firebase project ID                              |
+| `VITE_FIREBASE_STORAGE_BUCKET`  | Firebase storage bucket                          |
+| `VITE_FIREBASE_MESSAGING_SENDER_ID` | Firebase messaging sender ID                 |
+| `VITE_FIREBASE_APP_ID`          | Firebase app ID                                  |
+| `VITE_FIREBASE_MEASUREMENT_ID`  | Firebase analytics measurement ID (optional)     |
+| `VITE_NEWSAPI_KEY`              | NewsAPI key for news fallback (optional)         |
+| `VITE_FINNHUB_KEY`              | Finnhub key for news fallback (optional)         |
+| `VITE_CORS_PROXY`               | CORS proxy URL (optional)                        |
+| `VITE_MFAPI_BASE_URL`           | Mutual fund search API base (optional)           |
 
 ## Deploy to Render
 

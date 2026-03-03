@@ -14,6 +14,7 @@ from app.routes.ipo_routes import ipo_router
 from app.routes.macro_routes import macro_router
 from app.routes.mutual_fund_routes import mutual_fund_router
 from app.routes.portfolio_routes import portfolio_router
+from app.routes.news_routes import news_router
 from app.routes.query_routes import query_router
 from app.routes.sector_routes import sector_router
 from app.routes.stock_routes import bollinger_router
@@ -125,6 +126,7 @@ app.include_router(macro_router)
 app.include_router(query_router)
 app.include_router(sector_router)
 app.include_router(portfolio_router)
+app.include_router(news_router)
 
 
 @app.on_event("startup")
@@ -151,7 +153,7 @@ def mcp_info():
         "description": "Indian Financial Markets MCP Server",
         "mcp_server": "backend/mcp_server.py",
         "claude_desktop_setup": "docs/mcp_setup.md",
-        "total_tools": 21,
+        "total_tools": 22,
         "tools": [
             "get_stock_quote",
             "calculate_rsi",
@@ -159,6 +161,7 @@ def mcp_info():
             "calculate_bollinger_bands",
             "calculate_moving_averages",
             "get_top_gainers_losers",
+            "get_market_news",
             "get_mutual_fund_nav",
             "search_mutual_funds",
             "calculate_sip",

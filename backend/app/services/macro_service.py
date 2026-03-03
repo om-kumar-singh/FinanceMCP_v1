@@ -2,13 +2,20 @@
 Macroeconomic data service.
 """
 
+import os
 from typing import Any
 
 import requests
 
-INFLATION_API = "https://api.worldbank.org/v2/country/IND/indicator/FP.CPI.TOTL.ZG"
-GDP_API = "https://api.worldbank.org/v2/country/IND/indicator/NY.GDP.MKTP.KD.ZG"
-REQUEST_TIMEOUT = 15
+INFLATION_API = os.getenv(
+    "INFLATION_API_URL",
+    "https://api.worldbank.org/v2/country/IND/indicator/FP.CPI.TOTL.ZG",
+)
+GDP_API = os.getenv(
+    "GDP_API_URL",
+    "https://api.worldbank.org/v2/country/IND/indicator/NY.GDP.MKTP.KD.ZG",
+)
+REQUEST_TIMEOUT = int(os.getenv("MACRO_REQUEST_TIMEOUT", "15"))
 
 
 def get_repo_rate() -> dict[str, Any]:

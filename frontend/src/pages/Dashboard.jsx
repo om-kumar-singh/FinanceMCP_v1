@@ -6,10 +6,15 @@ import Chat from '../components/Chat'
 import Watchlist, { useWatchlist } from '../components/Watchlist'
 import RSIGauge from '../components/RSIGauge'
 import MACDGauge from '../components/MACDGauge'
+import MarketNews from '../components/MarketNews'
+import MutualFundSearch from '../components/MutualFundSearch'
+import MutualFundSipCalculator from '../components/MutualFundSipCalculator'
+import MutualFundWatchlist from '../components/MutualFundWatchlist'
 
 const TABS = [
   { id: 'market', label: 'Market View' },
   { id: 'technical', label: 'Technical Analysis' },
+  { id: 'mutual', label: 'Mutual Funds' },
   { id: 'ai', label: 'AI Advisor' },
 ]
 
@@ -21,6 +26,7 @@ function Dashboard() {
   const { addToWatchlist } = useWatchlist()
 
   const [selectedSymbol, setSelectedSymbol] = useState('RELIANCE.NS')
+  const [selectedMfFund, setSelectedMfFund] = useState(null)
   const [selectedName, setSelectedName] = useState('Reliance Industries Limited')
   const [stockData, setStockData] = useState(null)
   const [rsiData, setRsiData] = useState(null)
@@ -174,7 +180,7 @@ function Dashboard() {
 
       {/* Tab content */}
       {activeTab === 'market' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
           <div className="lg:col-span-2 space-y-6">
             <div className="bg-white rounded-2xl border-2 border-bharat-navy/40 shadow-lg p-6">
               <h2 className="text-xl font-semibold text-bharat-navy mb-4">Market Overview</h2>
@@ -197,7 +203,12 @@ function Dashboard() {
                   title="Add to watchlist"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.286 3.967a1 1 0 00.95.69h4.174c.969 0 1.371 1.24.588 1.81l-3.378 2.455a1 1 0 00-.364 1.118l1.287 3.966c.3.922-.755 1.688-1.54 1.118l-3.378-2.454a1 1 0 00-1.175 0l-3.378 2.454c-.784.57-1.838-.196-1.539-1.118l1.287-3.966a1 1 0 00-.364-1.118L2.952 9.394c-.783-.57-.38-1.81.588-1.81h4.174a1 1 0 00.95-.69l1.286-3.967z"
+                    />
                   </svg>
                 </button>
               </div>
@@ -257,7 +268,8 @@ function Dashboard() {
             </div>
           </div>
 
-          <div>
+          <div className="flex flex-col gap-4 max-h-[calc(100vh-220px)] overflow-y-auto">
+            <MarketNews symbol={selectedSymbol} />
             <Watchlist onSelectStock={handleStockSelect} refreshTrigger={watchlistRefresh} />
           </div>
         </div>
@@ -334,6 +346,24 @@ function Dashboard() {
           </p>
           <div className="rounded-xl border-2 border-bharat-navy/30 overflow-hidden">
             <Chat embedded heightClassName="h-[560px] md:h-[680px]" />
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'mutual' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white rounded-2xl border-2 border-bharat-navy/40 shadow-lg p-6">
+              <h2 className="text-xl font-semibold text-bharat-navy mb-2">Mutual Funds</h2>
+              <p className="text-sm text-slate-600 mb-4">
+                Discover Indian mutual funds, track NAVs, and plan disciplined SIP investments.
+              </p>
+              <MutualFundSearch onSelectFund={setSelectedMfFund} />
+            </div>
+          </div>
+          <div className="flex flex-col gap-4">
+            <MutualFundSipCalculator selectedFund={selectedMfFund} />
+            <MutualFundWatchlist onSelectScheme={(s) => setSelectedMfFund(s)} />
           </div>
         </div>
       )}

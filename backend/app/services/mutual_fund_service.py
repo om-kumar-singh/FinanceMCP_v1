@@ -2,10 +2,11 @@
 Mutual fund NAV and SIP calculator services.
 """
 
+import os
+
 import requests
 
-
-MF_API_BASE = "https://api.mfapi.in/mf"
+MF_API_BASE = os.getenv("MF_API_BASE_URL", "https://api.mfapi.in/mf")
 
 
 def get_mutual_fund_nav(scheme_code: str) -> dict | None:
@@ -40,23 +41,49 @@ def get_mutual_fund_nav(scheme_code: str) -> dict | None:
 
     if not meta or not nav_data:
         return None
+    if not isinstance(nav_data, list) or len(nav_data) == 0:
+        return None
 
     latest = nav_data[0]
-    nav = latest.get("nav")
+    nav_str = latest.get("nav")
     date = latest.get("date")
 
-    if not nav or not date:
+    if not nav_str or not date:
         return None
+
+    try:
+        nav = float(nav_str)
+    except (TypeError, ValueError):
+        return None
+
+    # Daily change (if we have at least 2 NAV points)
+    change = None
+    change_percent = None
+    if len(nav_data) >= 2:
+        prev = nav_data[1]
+        prev_nav_str = prev.get("nav")
+        try:
+            prev_nav = float(prev_nav_str)
+        except (TypeError, ValueError):
+            prev_nav = None
+        if prev_nav and prev_nav != 0:
+            change = round(nav - prev_nav, 4)
+            change_percent = round((change / prev_nav) * 100, 2)
 
     scheme_name = meta.get("scheme_name", "")
     code = meta.get("scheme_code", scheme_code)
 
-    return {
+    result: dict = {
         "scheme_code": str(code),
         "scheme_name": scheme_name,
-        "nav": nav,
+        "nav": round(nav, 4),
         "date": date,
     }
+    if change is not None and change_percent is not None:
+        result["change"] = change
+        result["change_percent"] = change_percent
+
+    return result
 
 
 def calculate_sip(

@@ -5,6 +5,7 @@ import Landing from './pages/Landing'
 import Dashboard from './pages/Dashboard'
 import Auth from './pages/Auth'
 import ProtectedRoute from './components/ProtectedRoute'
+import ErrorBoundary from './components/ErrorBoundary'
 
 function App() {
   return (
@@ -17,7 +18,9 @@ function App() {
             path="/dashboard"
             element={
               <ProtectedRoute>
-                <Dashboard />
+                <ErrorBoundary>
+                  <Dashboard />
+                </ErrorBoundary>
               </ProtectedRoute>
             }
           />

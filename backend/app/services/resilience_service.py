@@ -13,7 +13,7 @@ import requests
 import yfinance as yf
 
 from app.services.news_service import get_market_news
-from app.services.gemini_service import generate_resilience_recommendations
+from app.services.recommender_service import generate_resilience_recommendations
 
 
 def _get_ml_prediction(features: list[float]) -> Optional[float]:

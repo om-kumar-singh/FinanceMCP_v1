@@ -2,6 +2,27 @@ import { useState } from 'react'
 import { predictResilience } from '../services/api'
 import ResilienceCharts from '../components/ResilienceCharts'
 
+const METRIC_INFO = {
+  resilience_score:
+    'Composite score (0–100) combining runway, survival probability, macro risk and ML signals. Higher is better.',
+  risk_level:
+    'Qualitative label derived from your resilience score. "Strong" means low probability of financial distress in the next 6–12 months.',
+  runway_months:
+    'Estimated number of months you can maintain your current expenses using your income, savings, and buffers.',
+  survival_probability_6_months:
+    'Model-estimated probability (0–100%) that you avoid a major liquidity crisis over the next 6 months.',
+  macro_sentiment_risk:
+    'How current macroeconomic conditions (inflation, rates, growth) might stress your finances. Lower is better.',
+  ml_resilience_score:
+    'Score from the ML model using your inputs and historical patterns of financially resilient households.',
+  combined_resilience_score:
+    'Weighted blend of all components used for the final decision and recommendations.',
+  adjusted_runway_after_market_shock:
+    'Simulated runway if your equity and mutual fund portfolio fell sharply in a market shock.',
+  portfolio_volatility:
+    'Estimated volatility of your current portfolio. Higher values indicate more fluctuation in portfolio value.',
+}
+
 function getRiskLevelColor(riskLevel) {
   if (!riskLevel) return 'text-slate-700'
   const level = String(riskLevel).toLowerCase()
@@ -293,31 +314,64 @@ function ResiliencePredictor() {
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <ResultRow label="Resilience Score" value={result.resilience_score} />
+              <ResultRow
+                label="Resilience Score"
+                value={result.resilience_score}
+                infoKey="resilience_score"
+              />
               <ResultRow
                 label="Risk Level"
                 value={result.risk_level}
                 highlight
                 colorClass={getRiskLevelColor(result.risk_level)}
+                infoKey="risk_level"
               />
-              <ResultRow label="Runway Months" value={result.runway_months} />
+              <ResultRow
+                label="Runway Months"
+                value={result.runway_months}
+                infoKey="runway_months"
+              />
               {result.adjusted_runway_after_market_shock != null && (
-                <ResultRow label="Adjusted Runway After Market Shock" value={result.adjusted_runway_after_market_shock} />
+                <ResultRow
+                  label="Adjusted Runway After Market Shock"
+                  value={result.adjusted_runway_after_market_shock}
+                  infoKey="adjusted_runway_after_market_shock"
+                />
               )}
               {result.portfolio_volatility != null && (
-                <ResultRow label="Portfolio Volatility" value={result.portfolio_volatility} />
+                <ResultRow
+                  label="Portfolio Volatility"
+                  value={result.portfolio_volatility}
+                  infoKey="portfolio_volatility"
+                />
               )}
               {result.macro_sentiment_risk != null && (
-                <ResultRow label="Macro Sentiment Risk" value={result.macro_sentiment_risk} />
+                <ResultRow
+                  label="Macro Sentiment Risk"
+                  value={result.macro_sentiment_risk}
+                  infoKey="macro_sentiment_risk"
+                />
               )}
               {result.survival_probability_6_months != null && (
-                <ResultRow label="Survival Probability (6 months) %" value={result.survival_probability_6_months} />
+                <ResultRow
+                  label="Survival Probability (6 months) %"
+                  value={result.survival_probability_6_months}
+                  infoKey="survival_probability_6_months"
+                />
               )}
               {result.ml_resilience_score != null && (
-                <ResultRow label="ML Resilience Score" value={result.ml_resilience_score} />
+                <ResultRow
+                  label="ML Resilience Score"
+                  value={result.ml_resilience_score}
+                  infoKey="ml_resilience_score"
+                />
               )}
               {result.combined_resilience_score != null && (
-                <ResultRow label="Combined Resilience Score" value={result.combined_resilience_score} />
+                <ResultRow
+                  label="Combined Resilience Score"
+                  value={result.combined_resilience_score}
+                  infoKey="combined_resilience_score"
+                />
               )}
             </div>
             {result.news_based_adjustment && (
@@ -373,7 +427,7 @@ function ResiliencePredictor() {
   )
 }
 
-function ResultRow({ label, value, highlight, colorClass }) {
+function ResultRow({ label, value, highlight, colorClass, infoKey }) {
   if (value == null && value !== 0) return null
   const val =
     typeof value === 'number'
@@ -385,7 +439,19 @@ function ResultRow({ label, value, highlight, colorClass }) {
     <div
       className={`flex justify-between items-center py-2 border-b border-slate-100 ${highlight ? 'rounded-lg px-3 -mx-3 border' : ''} ${colorClass || ''}`}
     >
-      <span className="text-sm text-slate-600">{label}</span>
+      <div className="flex items-center gap-1.5">
+        <span className="text-sm text-slate-600">{label}</span>
+        {infoKey && METRIC_INFO[infoKey] && (
+          <span className="group relative inline-flex">
+            <span className="h-4 w-4 cursor-help rounded-full border border-slate-300 text-[10px] leading-[14px] text-slate-500 flex items-center justify-center">
+              i
+            </span>
+            <div className="pointer-events-none absolute left-1/2 top-5 z-20 hidden w-64 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-lg group-hover:block">
+              {METRIC_INFO[infoKey]}
+            </div>
+          </span>
+        )}
+      </div>
       <span className="text-sm font-semibold">{val}</span>
     </div>
   )

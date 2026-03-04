@@ -121,7 +121,7 @@ def get_mutual_fund_nav(scheme_code: str) -> Dict[str, Any] | None:
     Fetch the current NAV, date, and daily change for a mutual fund scheme.
 
     Args:
-        scheme_code: Numeric mfapi.in scheme code (e.g. \"119551\").
+        scheme_code: Numeric mfapi.in scheme code (e.g. "119551").
 
     Returns:
         Dict with:
@@ -137,7 +137,7 @@ def get_mutual_fund_nav(scheme_code: str) -> Dict[str, Any] | None:
         return None
 
     code_str = str(scheme_code).strip()
-    url = f\"{MF_API_BASE}/{code_str}\"
+    url = f"{MF_API_BASE}/{code_str}"
 
     try:
         data = _run(_fetch_json(url))
@@ -147,14 +147,14 @@ def get_mutual_fund_nav(scheme_code: str) -> Dict[str, Any] | None:
     if not isinstance(data, dict):
         return None
 
-    meta = data.get(\"meta\") or {}
-    nav_data = data.get(\"data\") or []
+    meta = data.get("meta") or {}
+    nav_data = data.get("data") or []
     if not isinstance(nav_data, list) or not nav_data:
         return None
 
     latest = nav_data[0]
-    nav_str = latest.get(\"nav\")
-    date = latest.get(\"date\")
+    nav_str = latest.get("nav")
+    date = latest.get("date")
     if not nav_str or not date:
         return None
 
@@ -167,7 +167,7 @@ def get_mutual_fund_nav(scheme_code: str) -> Dict[str, Any] | None:
     change_percent: Optional[float] = None
     if len(nav_data) >= 2:
         prev = nav_data[1]
-        prev_nav_str = prev.get(\"nav\")
+        prev_nav_str = prev.get("nav")
         try:
             prev_nav = float(prev_nav_str)
         except (TypeError, ValueError):
@@ -176,18 +176,18 @@ def get_mutual_fund_nav(scheme_code: str) -> Dict[str, Any] | None:
             change = round(nav - prev_nav, 4)
             change_percent = round((change / prev_nav) * 100, 2)
 
-    scheme_name = meta.get(\"scheme_name\") or meta.get(\"schemeName\") or \"\"
-    code = meta.get(\"scheme_code\") or meta.get(\"schemeCode\") or code_str
+    scheme_name = meta.get("scheme_name") or meta.get("schemeName") or ""
+    code = meta.get("scheme_code") or meta.get("schemeCode") or code_str
 
     result: Dict[str, Any] = {
-        \"scheme_code\": str(code),
-        \"scheme_name\": scheme_name,
-        \"nav\": round(nav, 4),
-        \"date\": date,
+        "scheme_code": str(code),
+        "scheme_name": scheme_name,
+        "nav": round(nav, 4),
+        "date": date,
     }
     if change is not None and change_percent is not None:
-        result[\"change\"] = change
-        result[\"change_percent\"] = change_percent
+        result["change"] = change
+        result["change_percent"] = change_percent
 
     return result
 
@@ -199,7 +199,7 @@ def mutual_fund_search(query: str) -> List[Dict[str, Any]] | Dict[str, Any]:
     Search for mutual fund schemes by name using mfapi.in search endpoint.
 
     Args:
-        query: Search string such as \"hdfc top 100\".
+        query: Search string such as "hdfc top 100".
 
     Returns:
         List of matches (each with scheme_code, scheme_name, fund_house, scheme_type),
@@ -212,9 +212,9 @@ def mutual_fund_search(query: str) -> List[Dict[str, Any]] | Dict[str, Any]:
     if not q:
         return []
 
-    url = f\"{MF_API_BASE}/search\"
+    url = f"{MF_API_BASE}/search"
     try:
-        data = _run(_fetch_json(url, params={\"q\": q}))
+        data = _run(_fetch_json(url, params={"q": q}))
     except Exception:
         return []
 
@@ -225,18 +225,18 @@ def mutual_fund_search(query: str) -> List[Dict[str, Any]] | Dict[str, Any]:
     for item in data:
         if not isinstance(item, dict):
             continue
-        code = item.get(\"schemeCode\") or item.get(\"scheme_code\")
-        name = item.get(\"schemeName\") or item.get(\"scheme_name\")
-        fund_house = item.get(\"fundHouse\") or item.get(\"fund_house\") or \"\"
-        scheme_type = item.get(\"schemeType\") or item.get(\"scheme_type\") or \"\"
+        code = item.get("schemeCode") or item.get("scheme_code")
+        name = item.get("schemeName") or item.get("scheme_name")
+        fund_house = item.get("fundHouse") or item.get("fund_house") or ""
+        scheme_type = item.get("schemeType") or item.get("scheme_type") or ""
         if not code or not name:
             continue
         results.append(
             {
-                \"scheme_code\": str(code),
-                \"scheme_name\": name,
-                \"fund_house\": fund_house,
-                \"scheme_type\": scheme_type,
+                "scheme_code": str(code),
+                "scheme_name": name,
+                "fund_house": fund_house,
+                "scheme_type": scheme_type,
             }
         )
         if len(results) >= 10:
@@ -272,9 +272,9 @@ def sip_calculator(
         fv = P * (((1 + r) ** n - 1.0) / r) * (1 + r)
 
     return {
-        \"monthly_investment\": P,
-        \"years\": int(years),
-        \"expected_return\": float(expected_return),
-        \"future_value\": round(fv, 2),
+        "monthly_investment": P,
+        "years": int(years),
+        "expected_return": float(expected_return),
+        "future_value": round(fv, 2),
     }
 

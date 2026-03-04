@@ -9,7 +9,11 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
+from dotenv import load_dotenv
 from fastmcp import FastMCP
+
+# Load environment variables from a .env file if present (for API keys, etc.).
+load_dotenv()
 
 # When invoked as `python -m src.server`, this module is part of the `src`
 # package. Use relative imports so Python can locate the tools correctly.
@@ -26,6 +30,7 @@ from .tools.mutual_funds import (
     mutual_fund_search,
     sip_calculator,
 )
+from .tools.stocks import get_company_fundamentals, get_stock_news
 from .utils.optimizer import optimize_payload
 
 
@@ -66,7 +71,18 @@ mcp = FastMCP(
     name="BharatFinanceMCP",
     description=(
         "A comprehensive hub for Indian financial data including stocks, "
-        "mutual funds, IPOs, macroeconomic indicators, and tax calculators."
+        "mutual funds, IPOs, macroeconomic indicators, news, and tax calculators."
+    ),
+    instructions=(
+        "You are connected to BharatFinanceMCP, a toolkit for Indian markets. "
+        "When users ask about a single stock’s fundamentals (like P/E ratio, dividend yield, "
+        "or 52-week range), call get_company_fundamentals_tool(symbol). "
+        "When they ask about recent news for a stock or company, call get_stock_news_tool(symbol). "
+        "For comparative queries (for example, 'Compare HDFC vs ICICI'), call "
+        "get_company_fundamentals_tool separately for each symbol and then compare the results "
+        "in your answer. You may also call get_stock_news_tool for each symbol when users care "
+        "about sentiment or recent events. Combine these MCP tool outputs into a concise, "
+        "well-structured explanation for the user."
     ),
 )
 
@@ -203,6 +219,27 @@ def calculate_indian_tax_tool(
         buy_date,
         sell_date,
     )
+
+
+# ── Stock Fundamentals & News Tools ─────────────────────────
+
+
+@mcp.tool()
+def get_company_fundamentals_tool(symbol: str):
+    """
+    Useful for answering questions about company fundamentals such as P/E ratio,
+    dividend yield, and 52-week high/low for a given NSE/BSE stock symbol.
+    """
+    return _safe_tool_call("get_company_fundamentals", get_company_fundamentals, symbol)
+
+
+@mcp.tool()
+def get_stock_news_tool(symbol: str):
+    """
+    Useful for summarizing the most recent major news headlines about a stock
+    or company so you can discuss catalysts, sentiment, and contextual events.
+    """
+    return _safe_tool_call("get_stock_news", get_stock_news, symbol)
 
 
 if __name__ == "__main__":

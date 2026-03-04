@@ -5,7 +5,10 @@ yfinance
 pandas
 pandas_ta
 requests
+aiohttp
 beautifulsoup4
+lxml
+httpx
 python-dotenv
 fastmcp>=0.1.0
 scikit-learn

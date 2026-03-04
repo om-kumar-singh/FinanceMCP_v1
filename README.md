@@ -2,6 +2,8 @@
 
 A premium Indian fintech-style full-stack application for **Indian Markets Intelligence**. Built with FastAPI, React, Firebase Auth, and Realtime Database.
 
+In addition to the REST API, the project also ships a **Bharat Finance MCP server** (`BharatFinanceMCP_v1`) that exposes curated tools for mutual funds, IPOs, macroeconomic indicators, and Indian tax calculation to AI-native clients.
+
 ## Features
 
 - **Authentication** – Firebase Auth (email/password) with protected routes and user-specific data (watchlists, activity).
@@ -16,6 +18,7 @@ A premium Indian fintech-style full-stack application for **Indian Markets Intel
 - **Watchlists** – Firebase-backed stock and mutual fund watchlists with optional local-storage mirroring for a smoother UX.
 - **Chat persistence** – Messages and activity synced to Firebase Realtime Database.
 - **Indian flag theme** – Saffron, white, green, and navy blue palette tailored for Indian markets.
+- **MCP tools (CLI / AI clients)** – Standalone MCP server exposing mutual fund, IPO, macro, and capital-gains tools with built-in **adaptive truncation** to keep AI responses within context limits.
 
 ## Project Structure
 
@@ -30,6 +33,15 @@ bharat-finance-ai/
 │       ├── services/
 │       ├── utils/
 │       └── models/
+├── src/
+│   ├── server.py            # BharatFinanceMCP_v1 FastMCP server (tools over stdio)
+│   ├── tools/
+│   │   ├── mutual_funds.py  # NAV lookup, MF search, SIP calculator
+│   │   ├── ipo.py           # Upcoming IPOs, GMP, subscription
+│   │   ├── macro.py         # RBI rates, inflation (World Bank), GDP, FX reserves
+│   │   └── calculators.py   # Indian capital-gains / tax estimator
+│   └── utils/
+│       └── optimizer.py     # Adaptive truncation for MCP tool payloads
 ├── frontend/
 │   ├── src/
 │   │   ├── components/      # Navbar, Chat, StockSearch, Watchlist, RSIGauge, MACDGauge, etc.
@@ -168,6 +180,34 @@ High‑level view of key backend routes (see `/docs` for the full OpenAPI schema
 | `/gdp`                           | GET    | India GDP growth time‑series                       |
 | `/portfolio/analyze`             | POST   | Portfolio risk/return and sector analytics         |
 | `/portfolio/summary`             | POST   | Lightweight portfolio summary                       |
+
+## MCP Tools Overview
+
+The **BharatFinanceMCP_v1** server (in `src/server.py`) exposes a set of AI-first tools over MCP/stdio. Highlights:
+
+- **Mutual funds (`src/tools/mutual_funds.py`)**
+  - `get_mutual_fund_nav_tool` – Latest NAV and daily change for a scheme.
+  - `mutual_fund_search_tool` – Search schemes via `mfapi.in`.
+  - `sip_calculator_tool` – SIP projection using standard compounding.
+- **IPO & SME (`src/tools/ipo.py`)**
+  - `get_upcoming_ipos_tool` – Mainboard + SME IPO pipeline with key terms.
+  - `get_ipo_gmp_tool` – Grey Market Premium (GMP) with fuzzy name matching.
+  - `get_ipo_subscription_tool` – Live subscription (QIB / NII / Retail).
+- **Macroeconomy (`src/tools/macro.py`)**
+  - `get_rbi_rates_tool` – RBI policy rates + CRR (scraped with fallbacks).
+  - `get_india_inflation_tool` – Latest CPI from World Bank, WPI note.
+  - `get_india_gdp_growth_tool` – Latest annual GDP growth (World Bank).
+  - `get_forex_reserves_tool` – FX reserves (USD mn) from RBI WSS.
+- **Tax calculators (`src/tools/calculators.py`)**
+  - `calculate_indian_tax_tool` – Indian capital-gains estimate for equity, equity MF, debt MF, and gold, with INR output formatted in lakhs/crores.
+
+All MCP tools are wrapped with **`optimize_payload`** from `src/utils/optimizer.py` to:
+
+- Trim historical price arrays to the last 5 entries.
+- Truncate long descriptions / news summaries to ~200 characters.
+- Drop non-essential metadata (like `uuid`, `internal_id`).
+
+This **adaptive truncation** helps prevent “overloaded context” errors in AI clients while preserving the essential financial insight.
 
 ## Environment Variables
 

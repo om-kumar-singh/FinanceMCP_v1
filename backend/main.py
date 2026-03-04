@@ -5,6 +5,7 @@ BharatFinanceAI - FastAPI Backend
 import json
 import os
 
+from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
@@ -25,6 +26,12 @@ from app.routes.stock_routes import rsi_router
 from app.routes.stock_routes import router as stock_router
 from app.services.stock_search_service import initialize_stock_database
 from app.utils.response_optimizer import MAX_RESPONSE_SIZE, optimize_response
+
+
+# Load backend environment variables from backend/.env if present.
+# This ensures GEMINI_API_KEY (and other secrets) are available when running locally.
+_env_path = os.path.join(os.path.dirname(__file__), ".env")
+load_dotenv(dotenv_path=_env_path, override=False)
 
 
 class ResponseOptimizerMiddleware(BaseHTTPMiddleware):

@@ -13,6 +13,28 @@ from pydantic import BaseModel, Field
 resilience_router = APIRouter(tags=["resilience"])
 
 
+class ResilienceProfile(BaseModel):
+    """Optional user profile for personalised recommendations."""
+
+    age_band: Optional[str] = Field(
+        None,
+        description="Age band, e.g. '18-25', '26-35', '36-50', '50+'.",
+    )
+    dependents: Optional[int] = Field(
+        None,
+        ge=0,
+        description="Number of financial dependents.",
+    )
+    risk_tolerance: Optional[str] = Field(
+        None,
+        description="Self-reported risk tolerance (low/medium/high).",
+    )
+    primary_goal: Optional[str] = Field(
+        None,
+        description="Primary financial goal (e.g. 'retirement', 'house', 'education').",
+    )
+
+
 class ResilienceRequest(BaseModel):
     """Request body for resilience prediction."""
 
@@ -33,6 +55,10 @@ class ResilienceRequest(BaseModel):
     expense_history: Optional[List[float]] = Field(
         None,
         description="Last 6–12 months of expenses for expense volatility (e.g. [32000, 35000, 30000, 34000, 36000, 33000])",
+    )
+    profile: Optional[ResilienceProfile] = Field(
+        None,
+        description="Optional user profile to personalise Gemini AI recommendations.",
     )
 
 
@@ -68,5 +94,6 @@ def predict_resilience(payload: ResilienceRequest) -> dict:
         stock_symbols=payload.stock_symbols,
         mf_scheme_codes=payload.mf_scheme_codes,
         expense_history=payload.expense_history,
+        profile=payload.profile.dict() if payload.profile else None,
     )
     return result

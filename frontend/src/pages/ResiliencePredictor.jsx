@@ -20,6 +20,11 @@ function ResiliencePredictor() {
   const [stockPortfolioValue, setStockPortfolioValue] = useState('')
   const [mutualFundValue, setMutualFundValue] = useState('')
 
+  const [ageBand, setAgeBand] = useState('')
+  const [dependents, setDependents] = useState('')
+  const [riskTolerance, setRiskTolerance] = useState('')
+  const [primaryGoal, setPrimaryGoal] = useState('')
+
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [result, setResult] = useState(null)
@@ -45,6 +50,16 @@ function ResiliencePredictor() {
 
     setLoading(true)
     try {
+      const profile = {
+        age_band: ageBand || null,
+        dependents: dependents !== '' ? Number(dependents) : null,
+        risk_tolerance: riskTolerance || null,
+        primary_goal: primaryGoal || null,
+      }
+      const hasProfile = Object.values(profile).some(
+        (v) => v !== null && v !== '' && !Number.isNaN(v)
+      )
+
       const payload = {
         income: inc,
         monthly_expenses: exp,
@@ -52,6 +67,7 @@ function ResiliencePredictor() {
         emi: emiVal,
         stock_portfolio_value: stockPortfolioValue ? parseFloat(stockPortfolioValue) || 0 : 0,
         mutual_fund_value: mutualFundValue ? parseFloat(mutualFundValue) || 0 : 0,
+        ...(hasProfile ? { profile } : {}),
       }
       const data = await predictResilience(payload)
       setResult(data)
@@ -165,6 +181,81 @@ function ResiliencePredictor() {
             />
           </div>
 
+          {/* Optional profile inputs for personalised Gemini recommendations */}
+          <div className="pt-2 border-t border-slate-200 mt-2">
+            <p className="text-xs text-slate-500 mb-3">
+              Optional: Share a few details so AI (Gemini) can tailor recommendations to your situation.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="ageBand" className="block text-sm font-medium text-slate-700 mb-1">
+                  Age Band <span className="text-slate-500">optional</span>
+                </label>
+                <select
+                  id="ageBand"
+                  value={ageBand}
+                  onChange={(e) => setAgeBand(e.target.value)}
+                  className="w-full rounded-lg border-2 border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-bharat-navy focus:ring-1 focus:ring-bharat-navy outline-none text-sm"
+                >
+                  <option value="">Select age band</option>
+                  <option value="18-25">18–25</option>
+                  <option value="26-35">26–35</option>
+                  <option value="36-50">36–50</option>
+                  <option value="50+">50+</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="dependents" className="block text-sm font-medium text-slate-700 mb-1">
+                  Number of Dependents <span className="text-slate-500">optional</span>
+                </label>
+                <input
+                  id="dependents"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={dependents}
+                  onChange={(e) => setDependents(e.target.value)}
+                  placeholder="e.g. 2"
+                  className="w-full rounded-lg border-2 border-slate-300 px-3 py-2 text-slate-900 focus:border-bharat-navy focus:ring-1 focus:ring-bharat-navy outline-none"
+                />
+              </div>
+              <div>
+                <label htmlFor="riskTolerance" className="block text-sm font-medium text-slate-700 mb-1">
+                  Risk Tolerance <span className="text-slate-500">optional</span>
+                </label>
+                <select
+                  id="riskTolerance"
+                  value={riskTolerance}
+                  onChange={(e) => setRiskTolerance(e.target.value)}
+                  className="w-full rounded-lg border-2 border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-bharat-navy focus:ring-1 focus:ring-bharat-navy outline-none text-sm"
+                >
+                  <option value="">Select risk level</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="primaryGoal" className="block text-sm font-medium text-slate-700 mb-1">
+                  Primary Goal <span className="text-slate-500">optional</span>
+                </label>
+                <select
+                  id="primaryGoal"
+                  value={primaryGoal}
+                  onChange={(e) => setPrimaryGoal(e.target.value)}
+                  className="w-full rounded-lg border-2 border-slate-300 px-3 py-2 text-slate-900 bg-white focus:border-bharat-navy focus:ring-1 focus:ring-bharat-navy outline-none text-sm"
+                >
+                  <option value="">Select goal</option>
+                  <option value="emergency_fund">Build emergency fund</option>
+                  <option value="house">Buy a house</option>
+                  <option value="education">Children&apos;s education</option>
+                  <option value="retirement">Retirement planning</option>
+                  <option value="wealth_growth">Wealth growth</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
           {error && (
             <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
               {error}
@@ -181,45 +272,97 @@ function ResiliencePredictor() {
         </form>
       </section>
 
-      {/* Section 2: Prediction Results Card */}
+      {/* Section 2: Prediction Results + AI Recommendations */}
       {result && (
-        <section className="bg-white rounded-2xl border-2 border-bharat-navy/40 shadow-lg p-6">
-          <h2 className="text-lg font-semibold text-bharat-navy mb-4">Prediction Results</h2>
-          {result.insight && (
-            <p className="text-sm text-slate-600 mb-4 pb-4 border-b border-slate-200">
-              {result.insight}
-            </p>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <ResultRow label="Resilience Score" value={result.resilience_score} />
-            <ResultRow
-              label="Risk Level"
-              value={result.risk_level}
-              highlight
-              colorClass={getRiskLevelColor(result.risk_level)}
-            />
-            <ResultRow label="Runway Months" value={result.runway_months} />
-            {result.adjusted_runway_after_market_shock != null && (
-              <ResultRow label="Adjusted Runway After Market Shock" value={result.adjusted_runway_after_market_shock} />
+        <section className="mb-8 grid grid-cols-1 md:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] gap-4 md:gap-6">
+          <div className="bg-white rounded-2xl border-2 border-bharat-navy/40 shadow-lg p-6">
+            <h2 className="text-lg font-semibold text-bharat-navy mb-4">Prediction Results</h2>
+            {result.insight && (
+              <p className="text-sm text-slate-600 mb-4 pb-4 border-b border-slate-200">
+                {result.insight}
+              </p>
             )}
-            {result.portfolio_volatility != null && (
-              <ResultRow label="Portfolio Volatility" value={result.portfolio_volatility} />
+            {Array.isArray(result.insights) && result.insights.length > 0 && (
+              <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3">
+                <h3 className="text-sm font-semibold text-indigo-800 mb-2">Financial Insights</h3>
+                <ul className="list-disc list-inside text-sm text-indigo-900 space-y-1">
+                  {result.insights.map((item, i) => (
+                    <li key={i}>{item}</li>
+                  ))}
+                </ul>
+              </div>
             )}
-            {result.macro_sentiment_risk != null && (
-              <ResultRow label="Macro Sentiment Risk" value={result.macro_sentiment_risk} />
-            )}
-            {result.survival_probability_6_months != null && (
-              <ResultRow label="Survival Probability (6 months) %" value={result.survival_probability_6_months} />
-            )}
-            {result.ml_resilience_score != null && (
-              <ResultRow label="ML Resilience Score" value={result.ml_resilience_score} />
-            )}
-            {result.combined_resilience_score != null && (
-              <ResultRow label="Combined Resilience Score" value={result.combined_resilience_score} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <ResultRow label="Resilience Score" value={result.resilience_score} />
+              <ResultRow
+                label="Risk Level"
+                value={result.risk_level}
+                highlight
+                colorClass={getRiskLevelColor(result.risk_level)}
+              />
+              <ResultRow label="Runway Months" value={result.runway_months} />
+              {result.adjusted_runway_after_market_shock != null && (
+                <ResultRow label="Adjusted Runway After Market Shock" value={result.adjusted_runway_after_market_shock} />
+              )}
+              {result.portfolio_volatility != null && (
+                <ResultRow label="Portfolio Volatility" value={result.portfolio_volatility} />
+              )}
+              {result.macro_sentiment_risk != null && (
+                <ResultRow label="Macro Sentiment Risk" value={result.macro_sentiment_risk} />
+              )}
+              {result.survival_probability_6_months != null && (
+                <ResultRow label="Survival Probability (6 months) %" value={result.survival_probability_6_months} />
+              )}
+              {result.ml_resilience_score != null && (
+                <ResultRow label="ML Resilience Score" value={result.ml_resilience_score} />
+              )}
+              {result.combined_resilience_score != null && (
+                <ResultRow label="Combined Resilience Score" value={result.combined_resilience_score} />
+              )}
+            </div>
+            {result.news_based_adjustment && (
+              <p className="mt-4 text-xs text-slate-500">{result.news_based_adjustment}</p>
             )}
           </div>
-          {result.news_based_adjustment && (
-            <p className="mt-4 text-xs text-slate-500">{result.news_based_adjustment}</p>
+
+          {result.recommendations && typeof result.recommendations === 'object' && (
+            <aside className="bg-white rounded-2xl border-2 border-emerald-200 shadow-lg p-6">
+              <h3 className="text-lg font-semibold text-emerald-900 mb-1">Recommendations</h3>
+              <p className="text-xs text-emerald-700 mb-3">
+                Personalised tips based on your profile and current resilience metrics.
+              </p>
+              {result.recommendation_source === 'gemini_unavailable' && (
+                <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2">
+                  <p className="text-xs text-amber-800">
+                    Gemini recommendations are unavailable. Common causes: missing/invalid `GEMINI_API_KEY`, model not enabled, or quota/rate-limit exceeded.
+                    Check backend logs, then restart the backend after updating `backend/.env`.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-3">
+                {[
+                  { key: 'normal', title: 'Normal' },
+                  { key: 'market_crash', title: 'Market Crash' },
+                  { key: 'job_loss', title: 'Job Loss' },
+                  { key: 'emergency', title: 'Emergency' },
+                ].map(({ key, title }) => {
+                  const items = Array.isArray(result.recommendations?.[key])
+                    ? result.recommendations[key].slice(0, 5)
+                    : []
+                  if (items.length === 0) return null
+                  return (
+                    <div key={key} className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-3 py-2">
+                      <p className="text-xs font-semibold text-emerald-900 mb-1">{title}</p>
+                      <ul className="list-disc list-inside text-sm text-emerald-950 space-y-1">
+                        {items.map((item, i) => (
+                          <li key={i}>{item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )
+                })}
+              </div>
+            </aside>
           )}
         </section>
       )}

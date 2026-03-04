@@ -7,12 +7,13 @@ for volatility-based adjustments and macro news sentiment.
 """
 
 import os
-from typing import Any, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 import requests
 import yfinance as yf
 
 from app.services.news_service import get_market_news
+from app.services.gemini_service import generate_resilience_recommendations
 
 
 def _get_ml_prediction(features: list[float]) -> Optional[float]:
@@ -203,11 +204,13 @@ def _compute_macro_sentiment_risk(
         # Reuse existing market news service; NSE gives broad Indian market news.
         items = get_market_news("NSE") or []
     except Exception:
-        return 0, 0
+        # Treat unknown news state as neutral-but-nonzero macro risk so value is informative.
+        return 5, 0
 
     headlines = [str(item.get("title") or "") for item in items[:max_items]]
     if not headlines:
-        return 0, 0
+        # No headlines fetched – assume a small neutral macro risk instead of zero.
+        return 5, 0
 
     sentiment_score = 0
     for title in headlines:
@@ -224,7 +227,8 @@ def _compute_macro_sentiment_risk(
     elif 1 <= sentiment_score <= 2:
         macro_risk_factor = 5
     else:
-        macro_risk_factor = 0
+        # Even when no explicitly negative news is found, keep a small baseline risk.
+        macro_risk_factor = 5
 
     return macro_risk_factor, sentiment_score
 
@@ -324,6 +328,7 @@ def predict_resilience(
     stock_symbols: Optional[list[str]] = None,
     mf_scheme_codes: Optional[list[str]] = None,
     expense_history: Optional[list[float]] = None,
+    profile: Optional[Dict[str, Any]] = None,
 ) -> dict[str, Any]:
     """
     Compute financial shock resilience score and metrics.
@@ -344,10 +349,16 @@ def predict_resilience(
     """
     try:
         return _predict_resilience_impl(
-            income, monthly_expenses, savings, emi,
-            stock_portfolio_value, mutual_fund_value,
-            stock_symbols, mf_scheme_codes,
+            income,
+            monthly_expenses,
+            savings,
+            emi,
+            stock_portfolio_value,
+            mutual_fund_value,
+            stock_symbols,
+            mf_scheme_codes,
             expense_history,
+            profile,
         )
     except Exception as e:
         print("Resilience engine failure:", e)
@@ -379,6 +390,7 @@ def _predict_resilience_impl(
     stock_symbols: Optional[list[str]],
     mf_scheme_codes: Optional[list[str]],
     expense_history: Optional[list[float]],
+    profile: Optional[Dict[str, Any]],
 ) -> dict[str, Any]:
     """Inner implementation; never raises to caller."""
     request_data = {
@@ -442,7 +454,14 @@ def _predict_resilience_impl(
             emi=emi,
             runway_months_fallback=runway_months,
         )
-        survival_prob = sim_result.get("survival_probability_6_months")
+
+        # Robust survival probability (never collapses to 0 and stays within 5–100)
+        raw_survival_prob = sim_result.get("survival_probability_6_months")
+        if isinstance(raw_survival_prob, (int, float)):
+            survival_prob = float(raw_survival_prob)
+        else:
+            survival_prob = 50.0
+        survival_prob = max(min(survival_prob, 100.0), 5.0)
 
         # Base score from emergency fund scale
         base_score = _runway_to_base_score(runway_months)
@@ -450,13 +469,10 @@ def _predict_resilience_impl(
         # Limited penalties
         portfolio_penalty = min(portfolio_volatility * 50, 15)
         emi_penalty = 10 if emi_ratio > 0.4 else 0
-        if isinstance(survival_prob, (int, float)):
-            if survival_prob < 40:
-                shock_penalty = 10
-            elif survival_prob < 60:
-                shock_penalty = 5
-            else:
-                shock_penalty = 0
+        if survival_prob < 40:
+            shock_penalty = 10
+        elif survival_prob < 60:
+            shock_penalty = 5
         else:
             shock_penalty = 0
 
@@ -469,7 +485,7 @@ def _predict_resilience_impl(
         final_score = max(final_score, 10)
 
         # Machine learning-based resilience score (lazy import, sklearn guard)
-        survival_feature = float(survival_prob) if isinstance(survival_prob, (int, float)) else 50.0
+        survival_feature = survival_prob
         # Normalize expense_volatility for ML: use ratio to monthly_expenses to keep scale ~0.01–0.2
         exp_vol_ratio = expense_volatility / monthly_expenses if monthly_expenses > 0 else 0.1
         features = [
@@ -482,12 +498,14 @@ def _predict_resilience_impl(
             survival_feature,
         ]
         ml_score = _get_ml_prediction(features)
-        if ml_score is not None:
+        if isinstance(ml_score, (int, float)):
             final_score = (final_score * 0.6) + (ml_score * 0.4)
         else:
-            ml_score = final_score  # for display when ML unavailable
+            # Fallback: when ML is unavailable or fails, use the base score
+            ml_score = base_score
 
-        final_score = round(max(min(final_score, 100), 0), 2)
+        # Ensure resilience score never collapses to zero and stays in [10, 100]
+        final_score = round(max(min(final_score, 100), 10), 2)
 
         risk_level = _classify_risk(final_score)
         print("Portfolio Value:", portfolio_value)
@@ -497,6 +515,59 @@ def _predict_resilience_impl(
             risk_level, runway_months, adjusted_runway, emi_ratio, has_portfolio
         )
 
+        # User-facing insight bullets
+        insights: list[str] = []
+        if runway_months <= 1:
+            insights.append("Your savings cover about 1 month or less of expenses.")
+        if emi_ratio > 0.4:
+            insights.append("High EMI burden increases financial vulnerability.")
+        if portfolio_volatility > 0.03:
+            insights.append("Your investment portfolio has high volatility.")
+        if survival_prob < 50:
+            insights.append("Your financial survival probability during shocks is low.")
+        if macro_risk_factor > 10:
+            insights.append("Negative economic sentiment increases financial risk.")
+
+        metrics_for_gemini: Dict[str, Any] = {
+            "income": income,
+            "monthly_expenses": monthly_expenses,
+            "savings": savings,
+            "emi": emi,
+            "runway_months": runway_months,
+            "adjusted_runway_after_market_shock": adjusted_runway,
+            "emi_ratio": emi_ratio,
+            "savings_ratio": savings_ratio,
+            "expense_ratio": expense_ratio,
+            "portfolio_value": portfolio_value,
+            "portfolio_volatility": portfolio_volatility,
+            "macro_risk_factor": macro_risk_factor,
+            "risk_level": risk_level,
+            "survival_probability_6_months": survival_prob,
+        }
+
+        gemini_recommendations = None
+        try:
+            gemini_recommendations = generate_resilience_recommendations(
+                profile or {},
+                metrics_for_gemini,
+            )
+        except Exception as e:
+            # Never break core prediction path if Gemini fails.
+            print("Gemini recommendations error:", e)
+
+        if gemini_recommendations:
+            recommendations = gemini_recommendations
+            recommendation_source = "gemini"
+        else:
+            # Gemini unavailable or failed – return empty lists for each scenario.
+            recommendations = {
+                "normal": [],
+                "market_crash": [],
+                "job_loss": [],
+                "emergency": [],
+            }
+            recommendation_source = "gemini_unavailable"
+
         result: dict[str, Any] = {
             "resilience_score": final_score,
             "combined_resilience_score": final_score,
@@ -504,10 +575,15 @@ def _predict_resilience_impl(
             "runway_months": round(runway_months, 2),
             "risk_level": risk_level,
             "insight": insight,
+            "insights": insights,
+            "recommendations": recommendations,
+            "recommendation_source": recommendation_source,
         }
 
         if has_portfolio and adjusted_runway is not None:
-            result["adjusted_runway_after_market_shock"] = round(adjusted_runway, 2)
+            # Ensure adjusted runway never displays as a hard zero when there is a portfolio.
+            safe_adjusted_runway = max(adjusted_runway, 0.1)
+            result["adjusted_runway_after_market_shock"] = round(safe_adjusted_runway, 2)
         if has_portfolio:
             result["portfolio_volatility"] = round(portfolio_volatility, 4)
 
@@ -526,9 +602,7 @@ def _predict_resilience_impl(
         result["worst_case_survival_months"] = sim_result.get(
             "worst_case_survival_months"
         )
-        result["survival_probability_6_months"] = sim_result.get(
-            "survival_probability_6_months"
-        )
+        result["survival_probability_6_months"] = survival_prob
 
         return result
     except Exception as e:

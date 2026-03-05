@@ -27,8 +27,21 @@ def ask_query(request: QueryRequest):
     Example: POST /ask with {"query": "What is the stock price of TCS?"}
     """
     try:
-        # For now we ignore watchlist in rule-based processing,
-        # but keep it on the model for future LLM/MCP usage.
+        result = process_query(request.query)
+        return result
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="An error occurred while processing the query.",
+        )
+
+
+@query_router.post("/chat")
+def chat(request: QueryRequest):
+    """
+    Chat endpoint for the AI advisor. Same as /ask; accepts {"query": "user message"}.
+    """
+    try:
         result = process_query(request.query)
         return result
     except Exception:

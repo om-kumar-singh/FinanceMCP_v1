@@ -14,6 +14,7 @@ from app.services.stock_service import (
     calculate_macd,
     calculate_moving_averages,
     calculate_rsi,
+    get_stock_detail,
     get_stock_quote,
     get_top_gainers_losers,
 )
@@ -74,11 +75,12 @@ def stock_resolve(q: str = Query("", alias="q")):
 @router.get("/{symbol}")
 def stock_quote(symbol: str):
     """
-    Get stock quote for the given symbol.
+    Get stock quote and fundamentals for the given symbol (advisor format).
 
-    Example: GET /stock/RELIANCE.NS, GET /stock/TCS.NS
+    Example: GET /stock/RELIANCE, GET /stock/TCS.NS
+    Returns: symbol, price, pe, dividendYield, marketCap, sector, plus change/volume etc.
     """
-    data = get_stock_quote(symbol)
+    data = get_stock_detail(symbol)
     if data is None or (isinstance(data, dict) and data.get("error")):
         raise HTTPException(
             status_code=404,

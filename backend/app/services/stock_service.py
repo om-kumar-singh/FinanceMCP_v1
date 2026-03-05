@@ -97,6 +97,124 @@ def get_stock_quote(symbol: str) -> dict | None:
     }
 
 
+def get_stock_detail(symbol: str) -> dict | None:
+    """
+    Fetch stock quote plus fundamentals (PE, dividend yield, market cap, sector) for the AI advisor.
+
+    Returns:
+        Dict with symbol, price, pe, dividendYield, marketCap, sector (and quote fields), or None.
+    """
+    quote = get_stock_quote(symbol)
+    if quote is None:
+        return None
+
+    symbol_clean = quote["symbol"]
+    ticker = yf.Ticker(symbol_clean)
+    try:
+        info = ticker.info or {}
+    except Exception:
+        info = {}
+
+    pe = info.get("trailingPE") or info.get("forwardPE")
+    if pe is not None:
+        pe = round(float(pe), 1)
+
+    div_yield = info.get("dividendYield")
+    if div_yield is not None:
+        div_yield = round(float(div_yield) * 100, 2) if div_yield else 0.0
+    else:
+        div_yield = 0.0
+
+    mcap = info.get("marketCap")
+    if mcap is not None and mcap > 0:
+        if mcap >= 1_00_000_00_00_000:  # >= 1L Cr
+            market_cap_str = f"{mcap / 1_00_000_00_00_000:.1f}L Cr"
+        elif mcap >= 1_00_000_00_000:  # >= 1000 Cr
+            market_cap_str = f"{mcap / 1_00_000_00_000:.0f} Cr"
+        else:
+            market_cap_str = f"{mcap / 1_00_000_00:.0f} Cr"
+    else:
+        market_cap_str = "N/A"
+
+    sector = (info.get("sector") or "N/A").strip() or "N/A"
+
+    return {
+        "symbol": symbol_clean,
+        "price": quote["price"],
+        "pe": pe,
+        "dividendYield": div_yield,
+        "marketCap": market_cap_str,
+        "sector": sector,
+        "change": quote.get("change"),
+        "change_percent": quote.get("change_percent"),
+        "volume": quote.get("volume"),
+        "day_high": quote.get("day_high"),
+        "day_low": quote.get("day_low"),
+    }
+
+
+def get_stock_history(symbol: str, period: str = "6mo") -> dict | None:
+    """
+    Fetch OHLCV history for charts. period: 1mo, 3mo, 6mo, 1y.
+
+    Returns:
+        Dict with symbol, period, dates[], opens[], highs[], lows[], closes[], volumes[],
+        or None if invalid. All numeric arrays for Recharts.
+    """
+    if not symbol or not symbol.strip():
+        return None
+
+    symbol = symbol.strip().upper()
+    if not (symbol.endswith(".NS") or symbol.endswith(".BO")):
+        resolved = resolve_symbol(symbol)
+        if not resolved:
+            return None
+        symbol = resolved
+
+    if period not in ("1mo", "3mo", "6mo", "1y", "2y"):
+        period = "6mo"
+
+    ticker = yf.Ticker(symbol)
+    hist = ticker.history(period=period)
+
+    if hist is None or hist.empty or len(hist) < 2:
+        return None
+
+    hist = hist.reset_index()
+    if "Date" not in hist.columns and "Datetime" in hist.columns:
+        hist["Date"] = hist["Datetime"]
+
+    dates = []
+    opens = []
+    highs = []
+    lows = []
+    closes = []
+    volumes = []
+
+    for _, row in hist.iterrows():
+        d = row.get("Date")
+        if hasattr(d, "strftime"):
+            dates.append(d.strftime("%Y-%m-%d"))
+        else:
+            dates.append(str(d)[:10])
+        opens.append(round(float(row.get("Open", 0)), 2))
+        highs.append(round(float(row.get("High", 0)), 2))
+        lows.append(round(float(row.get("Low", 0)), 2))
+        closes.append(round(float(row.get("Close", 0)), 2))
+        volumes.append(int(row.get("Volume", 0)))
+
+    return {
+        "symbol": symbol,
+        "period": period,
+        "dates": dates,
+        "opens": opens,
+        "highs": highs,
+        "lows": lows,
+        "closes": closes,
+        "volumes": volumes,
+    }
+
+
 def calculate_rsi(symbol: str, period: int = 14) -> dict | None:
     """
     Calculate RSI (Relative Strength Index) for the given symbol.

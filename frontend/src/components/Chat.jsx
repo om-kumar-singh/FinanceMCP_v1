@@ -18,9 +18,106 @@ function formatBotResponse(response) {
     return typeof response === 'string' ? response : JSON.stringify(response, null, 2)
   }
 
-  // Handle known sources
+  // AI Advisor: compare_stocks (with markdown table)
+  if (source === 'compare_stocks' && result.name1) {
+    let text = `**${result.name1} vs ${result.name2}**\n\n`
+    text += `| Metric | ${result.name1} | ${result.name2} |\n|--------|--------|--------|\n`
+    text += `| Price | ₹${result.price1} | ₹${result.price2} |\n`
+    text += `| PE Ratio | ${result.pe1 ?? 'N/A'} | ${result.pe2 ?? 'N/A'} |\n`
+    text += `| Dividend Yield | ${result.dividendYield1}% | ${result.dividendYield2}% |\n\n`
+    if (result.interpretation?.length) {
+      text += `**Interpretation:**\n${result.interpretation.join(' ')}`
+    }
+    return text
+  }
+
+  // AI Advisor: buy_recommendation
+  if (source === 'buy_recommendation' && result.symbol) {
+    let text = `**Analysis: ${result.symbol.replace('.NS', '')}**\n\n`
+    text += `Price: ₹${result.price}\nPE Ratio: ${result.pe ?? 'N/A'}\nSector: ${result.sector}\nSector Avg PE: ~${result.sector_avg_pe}\n\n`
+    if (result.interpretation) text += `**Interpretation:**\n${result.interpretation}\n\n`
+    if (result.risk_factors) text += `**Risk Factors:**\n${result.risk_factors}\n\n`
+    if (result.conclusion) text += `**Conclusion:**\n${result.conclusion}`
+    return text
+  }
+
+  // AI Advisor: market_news (with optional summary)
+  if (source === 'market_news' && result.news) {
+    const summary = result.summary ? `**${result.summary}**\n\n` : ''
+    const lines = (result.news || []).slice(0, 5).map((n) => `- ${n.title || n.headline}${n.source ? ` (${n.source})` : ''}`)
+    return `${summary}**Headlines (${result.market || 'NSE'}):**\n\n${lines.join('\n')}`
+  }
+
+  // AI Advisor: stock_analysis (with risk factors)
+  if (source === 'stock_analysis' && result.symbol) {
+    let text = `**${result.title || 'Stock Analysis'}**\n\n`
+    text += `**Price:** ₹${result.price}\n**PE Ratio:** ${result.pe ?? 'N/A'}\n**Sector Avg PE:** ~${result.sector_avg_pe ?? 'N/A'}\n**Dividend Yield:** ${result.dividendYield ?? 0}%\n**Market Cap:** ${result.marketCap ?? 'N/A'}\n**Sector:** ${result.sector}\n\n`
+    if (result.interpretation) text += `**Interpretation:**\n${result.interpretation}\n\n`
+    if (result.risk_factors) text += `**Risk Factors:**\n${result.risk_factors}`
+    return text
+  }
+
+  // AI Advisor: technical_analysis
+  if (source === 'technical_analysis' && result.symbol) {
+    let text = `**${result.title || 'Technical Analysis'}**\n\n`
+    if (result.rsi) {
+      const r = result.rsi
+      text += `**RSI:** ${r.rsi} (${r.signal})\n`
+    }
+    if (result.moving_averages) {
+      const m = result.moving_averages
+      text += `**50 Day MA:** ₹${m.sma50}\n**200 Day MA:** ₹${m.sma200}\n**Price vs 200 MA:** ${m.signal_sma200}\n\n`
+    }
+    if (result.macd) {
+      const mac = result.macd
+      text += `**MACD:** ${mac.macd} | Signal: ${mac.signal} | Trend: ${mac.trend}\n\n`
+    }
+    if (result.interpretation?.length) {
+      text += `**Interpretation:**\n${result.interpretation.join(' ')}`
+    }
+    return text
+  }
+
+  // AI Advisor: portfolio_analysis
+  if (source === 'portfolio_analysis' && result.stocks) {
+    let text = `**Portfolio Analysis**\n\n`
+    text += `| Stock | Price | PE | Sector |\n|-------|-------|-----|--------|\n`
+    for (const s of result.stocks) {
+      text += `| ${(s.symbol || '').replace('.NS', '')} | ₹${s.price} | ${s.pe ?? 'N/A'} | ${s.sector ?? 'N/A'} |\n`
+    }
+    text += `\n**Sector breakdown:** ${JSON.stringify(result.sector_breakdown || {})}\n\n`
+    if (result.diversification) text += `**Diversification:** ${result.diversification}\n\n`
+    if (result.suggestions) text += `**Suggestions:** ${result.suggestions}`
+    return text
+  }
+
+  // AI Advisor: market_trend (gainers/losers)
+  if (source === 'market_trend' && result.gainers) {
+    const g = (result.gainers || []).slice(0, 5).map((s) => `${s.symbol?.replace('.NS', '')}: +${s.change_percent}%`)
+    const l = (result.losers || []).slice(0, 5).map((s) => `${s.symbol?.replace('.NS', '')}: ${s.change_percent}%`)
+    return `**Market Trend (NIFTY 50)**\n\n**Top Gainers:**\n${g.join('\n')}\n\n**Top Losers:**\n${l.join('\n')}`
+  }
+
+  // AI Advisor: pe_ratio
+  if (source === 'pe_ratio' && result.symbol) {
+    return `PE ratio of ${result.symbol.replace('.NS', '')} is **${result.pe}** (price ₹${result.price}).`
+  }
+
+  // AI Advisor: dividend_yield
+  if (source === 'dividend_yield' && result.symbol) {
+    return `Dividend yield of ${result.symbol.replace('.NS', '')} is **${result.dividendYield}%** (price ₹${result.price}).`
+  }
+
+  // Handle known sources – stock_api (advisor format may include pe, sector)
   if (source === 'stock_api' && result.symbol) {
-    return `Current price of ${result.symbol} is ₹${result.price} (change ${result.change} / ${result.change_percent}% ).`
+    let msg = `Current price of ${result.symbol.replace('.NS', '')} is **₹${result.price}**`
+    if (result.change != null && result.change_percent != null) {
+      msg += ` (change ${result.change} / ${result.change_percent}%)`
+    }
+    if (result.pe != null) msg += `. PE: ${result.pe}`
+    if (result.sector && result.sector !== 'N/A') msg += `. Sector: ${result.sector}`
+    msg += '.'
+    return msg
   }
 
   if (source === 'rsi' && result.symbol) {
@@ -232,7 +329,7 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
       })
 
       // For future MCP/LLM: pass watchlist context (optional, currently ignored by backend)
-      const response = await api.post('/ask', { query: trimmed })
+      const response = await api.post('/chat', { query: trimmed })
       const botText = formatBotResponse(response.data)
 
       const botMsgRef = push(msgsRef)
@@ -300,7 +397,7 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
 
     try {
       setLoading(true)
-      const response = await api.post('/ask', { query: trimmed })
+      const response = await api.post('/chat', { query: trimmed })
       const botText = formatBotResponse(response.data)
 
       const lastBot = [...messages].filter((m) => m.sender === 'bot').slice(-1)[0]
@@ -357,7 +454,7 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
     if (!uid || !activeSessionId || !latestUserMessage) return
     try {
       setLoading(true)
-      const response = await api.post('/ask', { query: latestUserMessage.text })
+      const response = await api.post('/chat', { query: latestUserMessage.text })
       const botText = formatBotResponse(response.data)
       if (latestBotMessage?.id) {
         const botRef = ref(db, `users/${uid}/chats/${activeSessionId}/messages/${latestBotMessage.id}`)
@@ -401,11 +498,18 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
             </div>
             <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1">
               {sessions.map((s) => (
-                <button
+                <div
                   key={s.id}
-                  type="button"
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setActiveSessionId(s.id)}
-                  className={`w-full text-left px-2 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 ${
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      setActiveSessionId(s.id)
+                    }
+                  }}
+                  className={`w-full text-left px-2 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 cursor-pointer ${
                     activeSessionId === s.id
                       ? 'border-bharat-navy bg-white text-bharat-navy'
                       : 'border-transparent bg-transparent text-slate-700 hover:bg-white hover:border-slate-200'
@@ -419,6 +523,7 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
                         onChange={(e) => setRenamingTitle(e.target.value)}
                         onBlur={() => handleRenameSession(s.id, renamingTitle)}
                         onKeyDown={(e) => {
+                          e.stopPropagation()
                           if (e.key === 'Enter') {
                             e.preventDefault()
                             handleRenameSession(s.id, renamingTitle)
@@ -455,7 +560,7 @@ function Chat({ embedded = false, heightClassName = 'h-[480px] md:h-[560px]' }) 
                       🗑
                     </button>
                   </span>
-                </button>
+                </div>
               ))}
               {sessions.length === 0 && (
                 <p className="text-[11px] text-slate-500 px-1">

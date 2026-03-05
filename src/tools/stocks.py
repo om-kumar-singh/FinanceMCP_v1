@@ -45,6 +45,9 @@ def _normalise_symbol(raw: str) -> str:
     return f"{base}.NS"
 
 
+# ── Fundamentals ───────────────────────────────────────────────
+
+
 def get_company_fundamentals(symbol: str) -> Dict[str, Any]:
     """
     Fetch basic company fundamentals for an exchange symbol using yfinance.
@@ -111,6 +114,246 @@ def get_company_fundamentals(symbol: str) -> Dict[str, Any]:
             table_rows,
         ),
         "source": "yfinance / Yahoo Finance",
+    }
+
+
+# ── Technicals & Index Data ────────────────────────────────────
+
+
+def _fetch_price_history(symbol: str, period: str = "1y") -> Optional[Any]:
+    """
+    Helper to fetch OHLCV history for a symbol using yfinance.
+
+    Returns a pandas DataFrame or None on failure.
+    """
+    norm = _normalise_symbol(symbol)
+    try:
+        ticker = yf.Ticker(norm)
+        hist = ticker.history(period=period)
+    except Exception:
+        return None
+    if hist is None or hist.empty:
+        return None
+    return hist
+
+
+def _compute_rsi_from_close(close_series, period: int = 14) -> Optional[float]:
+    try:
+        import pandas as pd  # type: ignore
+    except Exception:
+        return None
+    if close_series is None or len(close_series) < period + 1:
+        return None
+    delta = close_series.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.rolling(window=period, min_periods=period).mean()
+    avg_loss = loss.rolling(window=period, min_periods=period).mean()
+    rs = avg_gain / avg_loss.replace(0, float("nan"))
+    rsi = 100 - (100 / (1 + rs))
+    last = float(rsi.iloc[-1])
+    if last != last:  # NaN check
+        return None
+    return round(last, 2)
+
+
+def _compute_macd_from_close(close_series) -> Optional[Dict[str, float]]:
+    try:
+        import pandas as pd  # type: ignore
+    except Exception:
+        return None
+    if close_series is None or len(close_series) < 35:
+        return None
+    exp12 = close_series.ewm(span=12, adjust=False).mean()
+    exp26 = close_series.ewm(span=26, adjust=False).mean()
+    macd_line = exp12 - exp26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    hist = macd_line - signal_line
+    last_macd = float(macd_line.iloc[-1])
+    last_signal = float(signal_line.iloc[-1])
+    last_hist = float(hist.iloc[-1])
+    if any(v != v for v in (last_macd, last_signal, last_hist)):
+        return None
+    return {
+        "macd": round(last_macd, 2),
+        "signal": round(last_signal, 2),
+        "histogram": round(last_hist, 2),
+    }
+
+
+def get_stock_technicals(symbol: str) -> Dict[str, Any]:
+    """
+    Compute key technical indicators (RSI, MACD, moving averages) for a stock.
+
+    This tool is designed to support rich interpretations like
+    \"RSI is overbought but MACD has just turned bullish\" by returning a
+    compact, structured summary along with a tiny price history.
+    """
+    if not symbol or not str(symbol).strip():
+        return {
+            "error": "Symbol is required to fetch technical indicators.",
+        }
+
+    norm = _normalise_symbol(symbol)
+    hist = _fetch_price_history(norm, period="1y")
+    if hist is None:
+        return {
+            "error": f"Price history is not available for symbol '{symbol}'.",
+            "symbol": symbol,
+            "normalized_symbol": norm,
+        }
+
+    close = hist["Close"]
+
+    rsi_value = _compute_rsi_from_close(close, period=14)
+    if rsi_value is None:
+        rsi_signal = None
+    elif rsi_value > 70:
+        rsi_signal = "overbought"
+    elif rsi_value < 30:
+        rsi_signal = "oversold"
+    else:
+        rsi_signal = "neutral"
+
+    macd_data = _compute_macd_from_close(close)
+    if macd_data:
+        trend = "bullish" if macd_data["macd"] > macd_data["signal"] else "bearish"
+        macd_data["trend"] = trend
+
+    # Moving averages
+    sma20 = close.rolling(window=20).mean()
+    sma50 = close.rolling(window=50).mean()
+    sma200 = close.rolling(window=200).mean()
+    latest_close = float(close.iloc[-1])
+
+    def _safe_last(series) -> Optional[float]:
+        try:
+            val = float(series.iloc[-1])
+            if val != val:
+                return None
+            return round(val, 2)
+        except Exception:
+            return None
+
+    ma_data = {
+        "price": round(latest_close, 2),
+        "sma20": _safe_last(sma20),
+        "sma50": _safe_last(sma50),
+        "sma200": _safe_last(sma200),
+    }
+
+    # Small recent price window for context; adaptive optimizer will trim further if needed.
+    recent = hist.tail(10).reset_index()
+    recent_points: List[Dict[str, Any]] = []
+    for _, row in recent.iterrows():
+        try:
+            date_val = row["Date"].strftime("%Y-%m-%d")
+        except Exception:
+            date_val = str(row["Date"])
+        recent_points.append(
+            {
+                "date": date_val,
+                "close": float(row["Close"]),
+            }
+        )
+
+    result = {
+        "symbol": symbol,
+        "normalized_symbol": norm,
+        "rsi": rsi_value,
+        "rsi_signal": rsi_signal,
+        "macd": macd_data,
+        "moving_averages": ma_data,
+        "historical_prices": recent_points,
+    }
+
+    table_rows: List[List[Any]] = [
+        ["Symbol (input)", symbol],
+        ["Symbol (normalized)", norm],
+        ["RSI (14)", rsi_value],
+        ["RSI Signal", rsi_signal],
+        ["MACD", macd_data["macd"] if macd_data else None],
+        ["MACD Signal", macd_data["signal"] if macd_data else None],
+        ["MACD Histogram", macd_data["histogram"] if macd_data else None],
+        ["MACD Trend", macd_data.get("trend") if macd_data else None],
+        ["Price", ma_data["price"]],
+        ["SMA20", ma_data["sma20"]],
+        ["SMA50", ma_data["sma50"]],
+        ["SMA200", ma_data["sma200"]],
+    ]
+
+    return {
+        "technicals": result,
+        "table": _to_table(["Metric", "Value"], table_rows),
+        "source": "yfinance / derived technicals",
+    }
+
+
+INDEX_SYMBOLS: Dict[str, str] = {
+    "NIFTY50": "^NSEI",
+    "NIFTY": "^NSEI",
+    "NSEI": "^NSEI",
+    "BANKNIFTY": "^NSEBANK",
+    "SENSEX": "^BSESN",
+}
+
+
+def get_index_snapshot(index_code: str = "NIFTY50") -> Dict[str, Any]:
+    """
+    Get latest index level and simple recent returns for a broad index
+    such as NIFTY 50 or Bank NIFTY. Useful for comparing funds/stocks
+    against the broader market.
+    """
+    code = (index_code or "NIFTY50").strip().upper()
+    ticker_symbol = INDEX_SYMBOLS.get(code, code)
+
+    try:
+        ticker = yf.Ticker(ticker_symbol)
+        hist_1y = ticker.history(period="1y")
+    except Exception:
+        hist_1y = None
+
+    if hist_1y is None or hist_1y.empty:
+        return {
+            "error": f"Unable to fetch index data for '{index_code}'.",
+            "index_code": index_code,
+            "ticker": ticker_symbol,
+        }
+
+    latest = hist_1y.iloc[-1]
+    latest_close = float(latest["Close"])
+
+    def _simple_return(days: int) -> Optional[float]:
+        if len(hist_1y) <= days:
+            return None
+        past = hist_1y.iloc[-days]["Close"]
+        if past == 0:
+            return None
+        return round(((latest_close - float(past)) / float(past)) * 100.0, 2)
+
+    returns = {
+        "1m_return_percent": _simple_return(21),
+        "3m_return_percent": _simple_return(63),
+        "6m_return_percent": _simple_return(126),
+        "1y_return_percent": _simple_return(len(hist_1y) - 1),
+    }
+
+    table_rows = [
+        ["Index Code", code],
+        ["Ticker", ticker_symbol],
+        ["Latest Level", round(latest_close, 2)],
+        ["1M Return (%)", returns["1m_return_percent"]],
+        ["3M Return (%)", returns["3m_return_percent"]],
+        ["6M Return (%)", returns["6m_return_percent"]],
+        ["1Y Return (%)", returns["1y_return_percent"]],
+    ]
+
+    return {
+        "index_code": code,
+        "ticker": ticker_symbol,
+        "latest_level": round(latest_close, 2),
+        "returns": returns,
+        "table": _to_table(["Metric", "Value"], table_rows),
     }
 
 

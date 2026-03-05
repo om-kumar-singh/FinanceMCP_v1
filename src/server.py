@@ -17,7 +17,7 @@ load_dotenv()
 
 # When invoked as `python -m src.server`, this module is part of the `src`
 # package. Use relative imports so Python can locate the tools correctly.
-from .tools.calculators import calculate_indian_tax
+from .tools.calculators import calculate_indian_tax, sip_required_for_target
 from .tools.ipo import get_ipo_gmp, get_ipo_subscription, get_upcoming_ipos
 from .tools.macro import (
     get_forex_reserves,
@@ -25,12 +25,14 @@ from .tools.macro import (
     get_india_inflation,
     get_rbi_rates,
 )
-from .tools.mutual_funds import (
-    get_mutual_fund_nav,
-    mutual_fund_search,
-    sip_calculator,
+from .tools.mutual_funds import get_mutual_fund_nav, mutual_fund_search, sip_calculator
+from .tools.stocks import (
+    get_company_fundamentals,
+    get_index_snapshot,
+    get_stock_news,
+    get_stock_technicals,
 )
-from .tools.stocks import get_company_fundamentals, get_stock_news
+from .utils.alerts import check_alerts, list_alerts, register_nav_alert, register_news_watch
 from .utils.optimizer import optimize_payload
 
 
@@ -67,24 +69,7 @@ def _safe_tool_call(tool_name: str, func: Callable[..., Any], *args: Any, **kwar
         }
 
 
-mcp = FastMCP(
-    name="BharatFinanceMCP",
-    description=(
-        "A comprehensive hub for Indian financial data including stocks, "
-        "mutual funds, IPOs, macroeconomic indicators, news, and tax calculators."
-    ),
-    instructions=(
-        "You are connected to BharatFinanceMCP, a toolkit for Indian markets. "
-        "When users ask about a single stock’s fundamentals (like P/E ratio, dividend yield, "
-        "or 52-week range), call get_company_fundamentals_tool(symbol). "
-        "When they ask about recent news for a stock or company, call get_stock_news_tool(symbol). "
-        "For comparative queries (for example, 'Compare HDFC vs ICICI'), call "
-        "get_company_fundamentals_tool separately for each symbol and then compare the results "
-        "in your answer. You may also call get_stock_news_tool for each symbol when users care "
-        "about sentiment or recent events. Combine these MCP tool outputs into a concise, "
-        "well-structured explanation for the user."
-    ),
-)
+mcp = FastMCP("BharatFinanceMCP")
 
 
 # ── Mutual Fund Tools ──────────────────────────────────────
@@ -240,6 +225,96 @@ def get_stock_news_tool(symbol: str):
     or company so you can discuss catalysts, sentiment, and contextual events.
     """
     return _safe_tool_call("get_stock_news", get_stock_news, symbol)
+
+
+@mcp.tool()
+def get_stock_technicals_tool(symbol: str):
+    """
+    Useful for deep technical analysis of a stock, including RSI, MACD,
+    key moving averages, and a tiny recent price history for context.
+    """
+    return _safe_tool_call("get_stock_technicals", get_stock_technicals, symbol)
+
+
+@mcp.tool()
+def get_index_snapshot_tool(index_code: str = "NIFTY50"):
+    """
+    Useful for comparing any stock or mutual fund against a broad Indian
+    index such as NIFTY 50 or Bank NIFTY by fetching latest level and
+    recent percentage returns.
+    """
+    return _safe_tool_call("get_index_snapshot", get_index_snapshot, index_code)
+
+
+# ── SIP & Alerts Utilities ─────────────────────────────────────
+
+
+@mcp.tool()
+def sip_required_for_target_tool(
+    target_amount: float,
+    years: int,
+    expected_return: float,
+):
+    """
+    Useful for planning 'what-if' SIP scenarios, computing the monthly
+    SIP needed to reach a target corpus given years and expected return.
+    """
+    return _safe_tool_call(
+        "sip_required_for_target",
+        sip_required_for_target,
+        target_amount,
+        years,
+        expected_return,
+    )
+
+
+@mcp.tool()
+def register_nav_alert_tool(scheme_code: str, threshold_drop_percent: float):
+    """
+    Useful for registering a NAV alert so the advisor can later warn you
+    when a mutual fund's daily change falls below a given negative
+    threshold (for example, -2% in a single day).
+    """
+    return _safe_tool_call(
+        "register_nav_alert",
+        register_nav_alert,
+        scheme_code,
+        threshold_drop_percent,
+    )
+
+
+@mcp.tool()
+def register_news_watch_tool(keywords: list[str]):
+    """
+    Useful for setting up a simple news watchlist for sectors or
+    themes (e.g. ['fintech', 'regulation']) so the advisor can scan
+    for relevant headlines on demand.
+    """
+    return _safe_tool_call("register_news_watch", register_news_watch, keywords)
+
+
+@mcp.tool()
+def list_alerts_tool():
+    """
+    Useful for inspecting all currently registered NAV and news alert
+    rules so you can review or refine them in conversation.
+    """
+    return _safe_tool_call("list_alerts", list_alerts)
+
+
+@mcp.tool()
+def check_alerts_tool():
+    """
+    Useful for checking which NAV or news alerts are currently
+    triggered based on the latest mutual fund data and recent news
+    headlines.
+    """
+    return _safe_tool_call(
+        "check_alerts",
+        check_alerts,
+        get_mutual_fund_nav_func=get_mutual_fund_nav,
+        get_stock_news_func=get_stock_news,
+    )
 
 
 if __name__ == "__main__":

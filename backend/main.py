@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from app.routes.compare_routes import compare_router
+from app.routes.history_routes import history_router
 from app.routes.ipo_routes import ipo_router
 from app.routes.macro_routes import macro_router
 from app.routes.mutual_fund_routes import mutual_fund_router
@@ -121,6 +123,8 @@ app.add_middleware(
 )
 app.add_middleware(ResponseOptimizerMiddleware)
 
+app.include_router(compare_router)
+app.include_router(history_router)
 app.include_router(stock_router)
 app.include_router(rsi_router)
 app.include_router(macd_router)

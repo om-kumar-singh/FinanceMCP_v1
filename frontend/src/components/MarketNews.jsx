@@ -116,10 +116,11 @@ function MarketNews() {
         // 1) Primary: Backend (yfinance real-time, no CORS, no API keys)
         try {
           const raw = await getMarketNews('NSE')
-          if (Array.isArray(raw) && raw.length > 0 && isMounted) {
-            const items = raw.map((a) => ({
+          const list = Array.isArray(raw) ? raw : (raw?.news || [])
+          if (list.length > 0 && isMounted) {
+            const items = list.map((a) => ({
               title: a.title,
-              publisher: a.publisher || 'Market Desk',
+              publisher: a.publisher || a.source || 'Market Desk',
               url: a.link || a.url || '#',
               publishedAt: a.publishedAt || '',
               urlToImage: a.urlToImage || '',

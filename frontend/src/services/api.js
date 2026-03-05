@@ -31,6 +31,13 @@ export const resolveSymbol = async (query) => {
   return response.data
 }
 
+export const getStockHistory = async (symbol, period = '6mo') => {
+  const response = await api.get(`/history/${encodeURIComponent(symbol)}`, {
+    params: { period },
+  })
+  return response.data
+}
+
 export const getMarketNews = async (symbol) => {
   const safeSymbol = symbol || 'NSE'
   const response = await api.get(`/news/${encodeURIComponent(safeSymbol)}`)

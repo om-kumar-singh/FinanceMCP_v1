@@ -1,6 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import api from '../services/api'
+import {
+  AreaChart,
+  Area,
+  BarChart,
+  Bar,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+import api, { getStockHistory } from '../services/api'
 import StockSearch from '../components/StockSearch'
 import Chat from '../components/Chat'
 import Watchlist, { useWatchlist } from '../components/Watchlist'
@@ -31,6 +42,8 @@ function Dashboard() {
   const [stockData, setStockData] = useState(null)
   const [rsiData, setRsiData] = useState(null)
   const [macdData, setMacdData] = useState(null)
+  const [maData, setMaData] = useState(null)
+  const [historyData, setHistoryData] = useState(null)
 
   const [loading, setLoading] = useState(false)
   const [stockError, setStockError] = useState(null)
@@ -88,13 +101,17 @@ function Dashboard() {
     setStockData(null)
     setRsiData(null)
     setMacdData(null)
+    setMaData(null)
+    setHistoryData(null)
     setLoading(true)
 
     try {
-      const [stockRes, rsiRes, macdRes] = await Promise.allSettled([
+      const [stockRes, rsiRes, macdRes, maRes, histRes] = await Promise.allSettled([
         api.get(`/stock/${encodeURIComponent(symbol)}`),
         api.get(`/rsi/${encodeURIComponent(symbol)}`),
         api.get(`/macd/${encodeURIComponent(symbol)}`),
+        api.get(`/moving-averages/${encodeURIComponent(symbol)}`),
+        getStockHistory(symbol, '6mo'),
       ])
 
       if (stockRes.status === 'fulfilled') setStockData(stockRes.value.data)
@@ -113,6 +130,16 @@ function Dashboard() {
       else {
         console.error('MACD fetch error:', macdRes.reason)
         setMacdError(macdRes.reason?.response?.data?.detail || macdRes.reason?.message || 'Failed to fetch MACD data')
+      }
+
+      if (maRes.status === 'fulfilled') setMaData(maRes.value.data)
+      if (histRes.status === 'fulfilled' && histRes.value?.dates?.length) {
+        const arr = (histRes.value.dates || []).map((d, i) => ({
+          date: d,
+          close: histRes.value.closes?.[i] ?? 0,
+          volume: histRes.value.volumes?.[i] ?? 0,
+        }))
+        setHistoryData(arr)
       }
     } catch (err) {
       console.error('Unexpected error:', err)
@@ -266,6 +293,38 @@ function Dashboard() {
                 <p className="text-sm text-slate-500">Pick a stock to see live price data.</p>
               )}
             </div>
+
+            {/* Price History & Volume charts */}
+            {historyData && historyData.length > 0 && (
+              <div className="bg-white rounded-2xl border-2 border-bharat-navy/40 shadow-lg p-6">
+                <h3 className="text-lg font-semibold text-bharat-navy mb-4">Price History (6M)</h3>
+                <ResponsiveContainer width="100%" height={260}>
+                  <AreaChart data={historyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#0f172a" stopOpacity={0.4} />
+                        <stop offset="100%" stopColor="#0f172a" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => (v || '').slice(5)} />
+                    <YAxis tick={{ fontSize: 10 }} domain={['auto', 'auto']} tickFormatter={(v) => `₹${v}`} />
+                    <Tooltip formatter={(v) => [`₹${v}`, 'Close']} labelFormatter={(l) => l} />
+                    <Area type="monotone" dataKey="close" stroke="#0f172a" fill="url(#priceGrad)" strokeWidth={2} name="Price" />
+                  </AreaChart>
+                </ResponsiveContainer>
+                <h3 className="text-lg font-semibold text-bharat-navy mt-6 mb-2">Volume</h3>
+                <ResponsiveContainer width="100%" height={180}>
+                  <BarChart data={historyData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => (v || '').slice(5)} />
+                    <YAxis tick={{ fontSize: 10 }} tickFormatter={(v) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : v)} />
+                    <Tooltip formatter={(v) => [v?.toLocaleString(), 'Volume']} labelFormatter={(l) => l} />
+                    <Bar dataKey="volume" fill="#ea580c" radius={[2, 2, 0, 0]} name="Volume" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </div>
 
           <div className="flex flex-col gap-4 max-h-[calc(100vh-220px)] overflow-y-auto">
@@ -281,6 +340,21 @@ function Dashboard() {
           <p className="text-sm text-slate-600 mb-6">
             Signals and momentum tools built for quick decisions.
           </p>
+
+          {maData && (
+            <div className="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <h3 className="text-sm font-semibold text-bharat-navy mb-2">Moving Averages</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                <div><span className="text-slate-600">Price</span><br /><span className="font-semibold">₹{maData.price}</span></div>
+                <div><span className="text-slate-600">50 Day MA</span><br /><span className="font-semibold">₹{maData.sma50}</span> <span className={maData.signal_sma50 === 'above' ? 'text-bharat-green' : 'text-red-600'}>({maData.signal_sma50})</span></div>
+                <div><span className="text-slate-600">200 Day MA</span><br /><span className="font-semibold">₹{maData.sma200}</span> <span className={maData.signal_sma200 === 'above' ? 'text-bharat-green' : 'text-red-600'}>({maData.signal_sma200})</span></div>
+                <div><span className="text-slate-600">SMA20</span><br /><span className="font-semibold">₹{maData.sma20}</span></div>
+              </div>
+              <p className="text-xs text-slate-500 mt-2">
+                {maData.signal_sma200 === 'above' ? 'Price above 200-day MA suggests bullish long-term trend.' : 'Price below 200-day MA; watch for support levels.'}
+              </p>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white rounded-xl border-2 border-bharat-navy/30 p-5">

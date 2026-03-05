@@ -223,3 +223,44 @@ def calculate_indian_tax(
 
     return result
 
+
+def sip_required_for_target(
+    target_amount: float,
+    years: int,
+    expected_return: float,
+) -> Dict[str, Any]:
+    """
+    Given a target corpus, horizon, and expected annual return, compute
+    the monthly SIP required using the standard SIP future-value formula.
+
+    FV = P * [((1 + r)^n - 1) / r] * (1 + r)
+
+    where:
+        FV = target_amount
+        P  = required monthly investment
+        r  = monthly rate = expected_return / 12 / 100
+        n  = years * 12
+    """
+    FV = float(target_amount)
+    n = int(years) * 12
+    r = float(expected_return) / 12.0 / 100.0
+
+    if FV <= 0 or n <= 0:
+        required = 0.0
+    elif r == 0:
+        # No growth assumption: simple division.
+        required = FV / n
+    else:
+        factor = ((1 + r) ** n - 1.0) / r * (1 + r)
+        if factor <= 0:
+            required = 0.0
+        else:
+            required = FV / factor
+
+    return {
+        "target_amount": round(FV, 2),
+        "years": int(years),
+        "expected_return": float(expected_return),
+        "required_monthly_investment": round(required, 2),
+    }
+

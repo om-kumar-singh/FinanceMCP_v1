@@ -10,21 +10,28 @@ from app.services.news_service import get_market_news
 news_router = APIRouter(prefix="/news", tags=["news"])
 
 
+MOCK_NEWS = {
+    "news": [
+        {"title": "Nifty closes higher amid banking rally", "source": "Economic Times"},
+        {"title": "RBI keeps policy rate unchanged; focus on growth", "source": "Business Standard"},
+        {"title": "Indian equities attract FII flows; macros supportive", "source": "Moneycontrol"},
+    ]
+}
+
+
 @news_router.get("/{symbol}")
 def market_news(symbol: str):
     """
     Get latest market news for a given symbol.
-
-    Examples:
-      - GET /news/RELIANCE.NS
-      - GET /news/NSE        (NIFTY 50 index news)
-      - GET /news/BSE        (BSE Sensex index news)
+    Returns mock headlines when external API returns no items (avoids 404).
+    Includes a short summary for the UI (headline teaser).
     """
     items = get_market_news(symbol)
     if not items:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No news found for symbol '{symbol}'. Try another stock or index like NSE/BSE.",
-        )
-    return items
+        out = {"news": MOCK_NEWS["news"], "summary": "NSE update: Key headlines from Indian markets."}
+        return out
+    news_list = [{"title": x.get("title"), "source": x.get("publisher") or x.get("source", "Market")} for x in items]
+    first = (news_list[0].get("title") or "")[:80]
+    summary = f"NSE Market Update: {first}." if first else "Latest market headlines."
+    return {"news": news_list, "summary": summary}
 
